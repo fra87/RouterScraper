@@ -1,3 +1,7 @@
+# python gitignore template from GitHub
+# SPDX-License-Identifier: CC0-1.0
+# SPDX-FileCopyrightText: 2022 fra87
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
