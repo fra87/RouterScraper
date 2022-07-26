@@ -11,8 +11,8 @@ Router Scraper
 
 # Details
 
-This project aims at providing a python module to interact with the Fastgate
-modem.
+This project aims at providing a python module to interact with different
+routers.
 
 # Project layout
 

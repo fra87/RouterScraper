@@ -210,12 +210,21 @@ class fastgate_dn8245f2(baseScraper):
         result = []
         # Extract the items
         for i in range(int(connLst.get('total_num', '0'))):
-            result.append(connectedDevice(
-                Name=connLst.get(f'dev_{i}_name'),
-                MAC=connLst.get(f'dev_{i}_mac'),
-                IP=connLst.get(f'dev_{i}_ip'),
-                isFamily=connLst.get(f'dev_{i}_family') == '1',
-                Network=connLst.get(f'dev_{i}_network')
-                ))
+            extractedItm = {
+                    'name': connLst.get(f'dev_{i}_name'),
+                    'mac': connLst.get(f'dev_{i}_mac'),
+                    'ip': connLst.get(f'dev_{i}_ip'),
+                    'family': connLst.get(f'dev_{i}_family'),
+                    'network': connLst.get(f'dev_{i}_network')
+                }
+
+            if None not in extractedItm.values():
+                result.append(connectedDevice(
+                    Name=extractedItm['name'],
+                    MAC=extractedItm['mac'],
+                    IP=extractedItm['ip'],
+                    isFamily=extractedItm['family'] == '1',
+                    Network=extractedItm['network']
+                    ))
 
         return result

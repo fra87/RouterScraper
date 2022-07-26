@@ -60,7 +60,7 @@ class TestFastgate_dn8245f2(unittest.TestCase):
             token (str, optional): The token to embed. Defaults to 0.
 
         Returns:
-            dict: _description_
+            dict: The reply to the CMD7 request
         '''
         result = {
             'login_confirm': {
@@ -72,6 +72,40 @@ class TestFastgate_dn8245f2(unittest.TestCase):
             token = TestFastgate_dn8245f2.create_random_token()
         if token is not None:
             result['login_confirm']['token'] = token
+
+        return result
+
+    @staticmethod
+    def connectedDevice_to_dict(connDev: connectedDevice, idx: int,
+                                skipName: bool = False, skipMAC: bool = False,
+                                skipIP: bool = False, skipFamily: bool = False,
+                                skipNetwork: bool = False) -> dict:
+        '''Convert a connectedDevice to the corresponding JSON dictionary
+
+        Args:
+            connDev (connectedDevice): The item to convert
+            idx (int): The index of the item in the dictionary
+            skipName (bool): Avoid adding the Name parameter
+            skipMAC (bool): Avoid adding the MAC parameter
+            skipIP (bool): Avoid adding the IP parameter
+            skipFamily (bool): Avoid adding the isFamily parameter
+            skipNetwork (bool): Avoid adding the Network parameter
+
+        Returns:
+            dict: The JSON dictionary associated to the device
+        '''
+        result = {}
+
+        if not skipName:
+            result[f'dev_{idx}_name'] = connDev.Name
+        if not skipMAC:
+            result[f'dev_{idx}_mac'] = connDev.MAC
+        if not skipIP:
+            result[f'dev_{idx}_ip'] = connDev.IP
+        if not skipFamily:
+            result[f'dev_{idx}_family'] = '1' if connDev.isFamily else '0'
+        if not skipNetwork:
+            result[f'dev_{idx}_network'] = connDev.Network
 
         return result
 
@@ -432,3 +466,195 @@ class TestFastgate_dn8245f2(unittest.TestCase):
         exp = loginResult.Success
 
         self.assertEqual(got, exp)
+
+    ####################################
+    # Check listDevices                #
+    ####################################
+
+    @mock.patch('routerscraper.fastgate_dn8245f2.requests.get')
+    def test_listDevices_ConnectionError(self, mock_get):
+        '''Test listDevices fails for ConnectionError
+        '''
+        mock_get.return_value = MockResponse(status_code=400)
+
+        got = self._component.listDevices()
+        exp = []
+
+        self.assertEqual(got, exp)
+        mock_get.assert_called_once_with(f'http://{self._host}/status.cgi',
+                                         params={
+                                            'nvget': 'connected_device_list',
+                                         }, cookies=None)
+
+    @mock.patch('routerscraper.fastgate_dn8245f2.requests.get')
+    def test_listDevices_noJson(self, mock_get):
+        '''Test listDevices fails for missing JSON
+        '''
+        content = b'test_listDevices_noJson wrong data'
+        mock_get.return_value = MockResponse(status_code=200, content=content)
+
+        got = self._component.listDevices()
+        exp = []
+
+        self.assertEqual(got, exp)
+        mock_get.assert_called_once_with(f'http://{self._host}/status.cgi',
+                                         params={
+                                            'nvget': 'connected_device_list',
+                                         }, cookies=None)
+
+    @mock.patch('routerscraper.fastgate_dn8245f2.requests.get')
+    def test_listDevices_emptyJson(self, mock_get):
+        '''Test listDevices has no output for an empty JSON
+        '''
+        json_data = {}
+        mock_get.return_value = MockResponse(status_code=200,
+                                             json_data=json_data)
+
+        got = self._component.listDevices()
+        exp = []
+
+        self.assertEqual(got, exp)
+        mock_get.assert_called_once_with(f'http://{self._host}/status.cgi',
+                                         params={
+                                            'nvget': 'connected_device_list',
+                                         }, cookies=None)
+
+    @mock.patch('routerscraper.fastgate_dn8245f2.requests.get')
+    def test_listDevices_emptyItem(self, mock_get):
+        '''Test listDevices has no output for an empty connected_device_list
+        '''
+        json_data = {'connected_device_list': {}}
+        mock_get.return_value = MockResponse(status_code=200,
+                                             json_data=json_data)
+
+        got = self._component.listDevices()
+        exp = []
+
+        self.assertEqual(got, exp)
+        mock_get.assert_called_once_with(f'http://{self._host}/status.cgi',
+                                         params={
+                                            'nvget': 'connected_device_list',
+                                         }, cookies=None)
+
+    @mock.patch('routerscraper.fastgate_dn8245f2.requests.get')
+    def test_listDevices_missingTotal(self, mock_get):
+        '''Test listDevices has no output when there is no total
+        '''
+        connDevs = [
+                connectedDevice('N', 'M', 'I', False, 'n')
+            ]
+        connect_list = {}
+        for i, c in enumerate(connDevs):
+            connect_list.update(self.connectedDevice_to_dict(c, i))
+        json_data = {'connected_device_list': connect_list}
+        mock_get.return_value = MockResponse(status_code=200,
+                                             json_data=json_data)
+
+        got = self._component.listDevices()
+        exp = []
+
+        self.assertEqual(got, exp)
+        mock_get.assert_called_once_with(f'http://{self._host}/status.cgi',
+                                         params={
+                                            'nvget': 'connected_device_list',
+                                         }, cookies=None)
+
+    @mock.patch('routerscraper.fastgate_dn8245f2.requests.get')
+    def test_listDevices_success(self, mock_get):
+        '''Test listDevices succeeds
+        '''
+        connDevs = [
+                connectedDevice('A', 'B', 'C', False, 'E'),
+                connectedDevice('J', 'I', 'H', True, 'F'),
+                connectedDevice('K', 'L', 'M', False, 'O')
+            ]
+        connect_list = {'total_num': str(len(connDevs))}
+        for i, c in enumerate(connDevs):
+            connect_list.update(self.connectedDevice_to_dict(c, i))
+        json_data = {'connected_device_list': connect_list}
+        mock_get.return_value = MockResponse(status_code=200,
+                                             json_data=json_data)
+
+        got = self._component.listDevices()
+        exp = connDevs
+
+        self.assertEqual(got, exp)
+        mock_get.assert_called_once_with(f'http://{self._host}/status.cgi',
+                                         params={
+                                            'nvget': 'connected_device_list',
+                                         }, cookies=None)
+
+    @mock.patch('routerscraper.fastgate_dn8245f2.requests.get')
+    def test_listDevices_success_more(self, mock_get):
+        '''Test listDevices succeeds and ignores too many devices
+        '''
+        connDevs = [
+                connectedDevice('A', 'B', 'C', False, 'E'),
+                connectedDevice('J', 'I', 'H', True, 'F'),
+                connectedDevice('K', 'L', 'M', False, 'O')
+            ]
+        connect_list = {'total_num': 2}
+        for i, c in enumerate(connDevs):
+            connect_list.update(self.connectedDevice_to_dict(c, i))
+        json_data = {'connected_device_list': connect_list}
+        mock_get.return_value = MockResponse(status_code=200,
+                                             json_data=json_data)
+
+        got = self._component.listDevices()
+        exp = connDevs[:2]
+
+        self.assertEqual(got, exp)
+        mock_get.assert_called_once_with(f'http://{self._host}/status.cgi',
+                                         params={
+                                            'nvget': 'connected_device_list',
+                                         }, cookies=None)
+
+    @mock.patch('routerscraper.fastgate_dn8245f2.requests.get')
+    def test_listDevices_success_fewer(self, mock_get):
+        '''Test listDevices succeeds and ignores too few devices
+        '''
+        connDevs = [
+                connectedDevice('A', 'B', 'C', False, 'E'),
+                connectedDevice('J', 'I', 'H', True, 'F')
+            ]
+        connect_list = {'total_num': 3}
+        for i, c in enumerate(connDevs):
+            connect_list.update(self.connectedDevice_to_dict(c, i))
+        json_data = {'connected_device_list': connect_list}
+        mock_get.return_value = MockResponse(status_code=200,
+                                             json_data=json_data)
+
+        got = self._component.listDevices()
+        exp = connDevs
+
+        self.assertEqual(got, exp)
+        mock_get.assert_called_once_with(f'http://{self._host}/status.cgi',
+                                         params={
+                                            'nvget': 'connected_device_list',
+                                         }, cookies=None)
+
+    @mock.patch('routerscraper.fastgate_dn8245f2.requests.get')
+    def test_listDevices_success_fewerInfo(self, mock_get):
+        '''Test listDevices succeeds and ignores when some info is missing
+        '''
+        c = connectedDevice('A', 'B', 'C', False, 'E')
+        c_lst = {'total_num': 20}
+        c_lst.update(self.connectedDevice_to_dict(c, 0))
+        c_lst.update(self.connectedDevice_to_dict(c, 1, skipName=True))
+        c_lst.update(self.connectedDevice_to_dict(c, 2, skipMAC=True))
+        c_lst.update(self.connectedDevice_to_dict(c, 3, skipIP=True))
+        c_lst.update(self.connectedDevice_to_dict(c, 4, skipFamily=True))
+        c_lst.update(self.connectedDevice_to_dict(c, 5, skipNetwork=True))
+        c_lst.update(self.connectedDevice_to_dict(c, 6))
+        json_data = {'connected_device_list': c_lst}
+        mock_get.return_value = MockResponse(status_code=200,
+                                             json_data=json_data)
+
+        got = self._component.listDevices()
+        exp = [c, c]  # Expecting only the first and the last
+
+        self.assertEqual(got, exp)
+        mock_get.assert_called_once_with(f'http://{self._host}/status.cgi',
+                                         params={
+                                            'nvget': 'connected_device_list',
+                                         }, cookies=None)
