@@ -15,9 +15,13 @@ import requests
 import json
 
 from routerscraper.fastgate_dn8245f2 import fastgate_dn8245f2
-from routerscraper.fastgate_dn8245f2 import connectedDevice, loginResult
 from helpers_fastgate_dn8245f2 import MockResponse, ForceAuthenticatedReply
-from routerscraper.requestResult import resultValue, resultState
+from routerscraper.dataTypes import (
+        resultValue,
+        resultState,
+        loginResult,
+        connectedDevice
+    )
 
 
 class TestFastgate_dn8245f2(unittest.TestCase):
@@ -103,9 +107,11 @@ class TestFastgate_dn8245f2(unittest.TestCase):
         if not skipIP:
             result[f'dev_{idx}_ip'] = connDev.IP
         if not skipFamily:
-            result[f'dev_{idx}_family'] = '1' if connDev.isFamily else '0'
+            isFamily = connDev.additionalInfo.get('isFamily', False)
+            result[f'dev_{idx}_family'] = '1' if isFamily else '0'
         if not skipNetwork:
-            result[f'dev_{idx}_network'] = connDev.Network
+            Network = connDev.additionalInfo.get('Network', '')
+            result[f'dev_{idx}_network'] = Network
 
         return result
 
@@ -541,7 +547,8 @@ class TestFastgate_dn8245f2(unittest.TestCase):
         '''Test listDevices has no output when there is no total
         '''
         connDevs = [
-                connectedDevice('N', 'M', 'I', False, 'n')
+                connectedDevice('A', 'B', 'C',
+                                {'isFamily': False, 'Network': 'E'}),
             ]
         connect_list = {}
         for i, c in enumerate(connDevs):
@@ -564,9 +571,12 @@ class TestFastgate_dn8245f2(unittest.TestCase):
         '''Test listDevices succeeds
         '''
         connDevs = [
-                connectedDevice('A', 'B', 'C', False, 'E'),
-                connectedDevice('J', 'I', 'H', True, 'F'),
-                connectedDevice('K', 'L', 'M', False, 'O')
+                connectedDevice('A', 'B', 'C',
+                                {'isFamily': False, 'Network': 'E'}),
+                connectedDevice('J', 'I', 'H',
+                                {'isFamily': True, 'Network': 'F'}),
+                connectedDevice('K', 'L', 'M',
+                                {'isFamily': False, 'Network': 'O'})
             ]
         connect_list = {'total_num': str(len(connDevs))}
         for i, c in enumerate(connDevs):
@@ -589,9 +599,12 @@ class TestFastgate_dn8245f2(unittest.TestCase):
         '''Test listDevices succeeds and ignores too many devices
         '''
         connDevs = [
-                connectedDevice('A', 'B', 'C', False, 'E'),
-                connectedDevice('J', 'I', 'H', True, 'F'),
-                connectedDevice('K', 'L', 'M', False, 'O')
+                connectedDevice('A', 'B', 'C',
+                                {'isFamily': False, 'Network': 'E'}),
+                connectedDevice('J', 'I', 'H',
+                                {'isFamily': True, 'Network': 'F'}),
+                connectedDevice('K', 'L', 'M',
+                                {'isFamily': False, 'Network': 'O'})
             ]
         connect_list = {'total_num': 2}
         for i, c in enumerate(connDevs):
@@ -614,8 +627,10 @@ class TestFastgate_dn8245f2(unittest.TestCase):
         '''Test listDevices succeeds and ignores too few devices
         '''
         connDevs = [
-                connectedDevice('A', 'B', 'C', False, 'E'),
-                connectedDevice('J', 'I', 'H', True, 'F')
+                connectedDevice('A', 'B', 'C',
+                                {'isFamily': False, 'Network': 'E'}),
+                connectedDevice('J', 'I', 'H',
+                                {'isFamily': True, 'Network': 'F'})
             ]
         connect_list = {'total_num': 3}
         for i, c in enumerate(connDevs):
@@ -637,7 +652,8 @@ class TestFastgate_dn8245f2(unittest.TestCase):
     def test_listDevices_success_fewerInfo(self, mock_get):
         '''Test listDevices succeeds and ignores when some info is missing
         '''
-        c = connectedDevice('A', 'B', 'C', False, 'E')
+        c = connectedDevice('A', 'B', 'C',
+                            {'isFamily': False, 'Network': 'E'})
         c_lst = {'total_num': 20}
         c_lst.update(self.connectedDevice_to_dict(c, 0))
         c_lst.update(self.connectedDevice_to_dict(c, 1, skipName=True))

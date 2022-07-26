@@ -9,34 +9,14 @@
 
 import requests
 import base64
-from enum import Enum
-from dataclasses import dataclass
 
 from .basescraper import baseScraper
-from .requestResult import resultValue, resultState
-
-
-class loginResult(Enum):
-    '''Enum with possible login results
-    '''
-
-    Success = 'Login successful'
-    ConnectionError = 'Connection error'
-    Locked = 'Login is locked'
-    NoToken = 'Could not extract token from request'
-    WrongUser = 'Wrong username provided'
-    WrongPass = 'Wrong password provided'
-
-
-@dataclass
-class connectedDevice:
-    '''Class containing one connected device information
-    '''
-    Name: str
-    MAC: str
-    IP: str
-    isFamily: bool
-    Network: str
+from .dataTypes import (
+        resultValue,
+        resultState,
+        loginResult,
+        connectedDevice
+    )
 
 
 class fastgate_dn8245f2(baseScraper):
@@ -223,8 +203,9 @@ class fastgate_dn8245f2(baseScraper):
                     Name=extractedItm['name'],
                     MAC=extractedItm['mac'],
                     IP=extractedItm['ip'],
-                    isFamily=extractedItm['family'] == '1',
-                    Network=extractedItm['network']
-                    ))
+                    additionalInfo={
+                        'isFamily': extractedItm['family'] == '1',
+                        'Network': extractedItm['network']
+                    }))
 
         return result
