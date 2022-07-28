@@ -7,129 +7,73 @@
 # SPDX-FileCopyrightText: 2022 fra87
 #
 
-import requests
 import base64
-from enum import Enum
-from dataclasses import dataclass
+from typing import Any
 
 from .basescraper import baseScraper
-from .requestResult import resultValue, resultState
-
-
-class loginResult(Enum):
-    '''Enum with possible login results
-    '''
-
-    Success = 'Login successful'
-    ConnectionError = 'Connection error'
-    Locked = 'Login is locked'
-    NoToken = 'Could not extract token from request'
-    WrongUser = 'Wrong username provided'
-    WrongPass = 'Wrong password provided'
-
-
-@dataclass
-class connectedDevice:
-    '''Class containing one connected device information
-    '''
-    Name: str
-    MAC: str
-    IP: str
-    isFamily: bool
-    Network: str
+from .dataTypes import (
+        resultState,
+        loginResult,
+        connectedDevice
+    )
 
 
 class fastgate_dn8245f2(baseScraper):
     '''Class for scraping data from Fastgate Huawei DN8245f2
     '''
 
+    # List of valid services
     _validServices = [
         'connected_device_list',
         'login_confirm'
     ]
 
-    def __init__(self, host: str, user: str, password: str):
-        '''Initialize the object
+    def _requestData_url(self, service: str, params: dict[str, str]) -> str:
+        '''Build the URL from the requestData parameters
 
         Args:
-            host (str): The host address of the Fastgate router
-            user (str): The username for the connection
-            password (str): The password for the connection
-        '''
-        super().__init__(host, user, password)
-
-    def _requestData(self, service: str, params: dict[str, str] = None,
-                     autologin: bool = True, forceJSON: bool = False
-                     ) -> resultValue:
-        '''Request data from the router
-
-        Args:
-            service (str): The service to request
-            params (dict[str,str], optional): Additional parameters to pass to
-                                              the request. Defaults to None.
-            autologin (bool, optional): If necessary, when user is not logged
-                                        in try to perform a login and then
-                                        retry the request. Defaults to True.
-            forceJSON (bool, optional): If True, result will be an error if
-                                        payload is not a valid JSON string.
-                                        Defaults to False.
+            service (str): The service being requested
+            params (dict[str, str]): The additional GET params being requested
 
         Returns:
-            resultValue: The result of the request
+            str: The URL for the request
         '''
-        if service not in self._validServices:
-            errorMessage = (f'Invalid service requested: service {service}, '
-                            f'valid services {self._validServices}')
-            raise ValueError(errorMessage)
+        return f'http://{self._host}/status.cgi'
 
-        # Initialize params dictionary and set the nvget parameter
-        if not isinstance(params, dict):
-            params = {}
-        params['nvget'] = service
+    def _requestData_params(self, service: str, params: dict[str, str]
+                            ) -> dict[str, str]:
+        '''Build the GET params from the requestData parameters
 
-        # Build the request URL
-        requestUrl = f'http://{self._host}/status.cgi'
+        Args:
+            service (str): The service being requested
+            params (dict[str, str]): The additional GET params being requested
 
-        # Build the cookies variable
-        session = self._session if self._session else None
+        Returns:
+            dict[str, str]: The GET params
+        '''
 
-        try:
-            # Perform a request
-            result = requests.get(requestUrl, params=params, cookies=session)
+        if isinstance(params, dict):
+            result = params
+        else:
+            result = {}
 
-            # Check if request was successful
-            result.raise_for_status()
+        result['nvget'] = service
 
-        except (requests.exceptions.ConnectionError,
-                requests.exceptions.HTTPError) as e:
-            return resultValue(resultState.ConnectionError, str(e))
+        return result
 
-        # Extract cookies from result
-        cookies = result.cookies if result.cookies else None
+    @staticmethod
+    def isLoginRequest(payload: str, jsonItm: dict, cookies: Any) -> bool:
+        '''Check if the extracted data corresponds to a login request
 
-        # Extract payload
-        payload = result.content.decode(result.encoding)
+        Args:
+            payload (str): The raw payload of the response
+            jsonItm (dict): The JSON representation of the response
+            cookies (Any): The cookies in the response
 
-        try:
-            # Extract JSON representation if available
-            jsonItm = result.json()
-
-            # Verify if this was a login request by the router
-            # (valid only if there was a JSON payload)
-            if jsonItm.get('login_confirm', {}).get('login_status') == '0':
-                if autologin and self.login() == loginResult.Success:
-                    # If the login was successful, retry the request
-                    return self._requestData(service, params,
-                                             autologin=False,
-                                             forceJSON=forceJSON)
-                else:
-                    return resultValue(resultState.MustLogin, payload, jsonItm)
-        except requests.exceptions.JSONDecodeError:
-            if forceJSON:
-                return resultValue(resultState.NotJsonResponse, payload)
-            jsonItm = {}
-
-        return resultValue(resultState.Completed, payload, jsonItm, cookies)
+        Returns:
+            bool: True if the data corresponds to a login request
+        '''
+        return jsonItm.get('login_confirm', {}).get('login_status') == '0'
 
     def login(self) -> loginResult:
         '''Perform a login action
@@ -223,8 +167,9 @@ class fastgate_dn8245f2(baseScraper):
                     Name=extractedItm['name'],
                     MAC=extractedItm['mac'],
                     IP=extractedItm['ip'],
-                    isFamily=extractedItm['family'] == '1',
-                    Network=extractedItm['network']
-                    ))
+                    additionalInfo={
+                        'isFamily': extractedItm['family'] == '1',
+                        'Network': extractedItm['network']
+                    }))
 
         return result

@@ -19,8 +19,7 @@ routers.
 - `README.md`: this file
 - **routerscraper**: folder with the scraping module
     - `basescraper.py`: Contains the base class implementation
-    - `requestResult.py`: Contains the classes for grouping results from a
-                          request
+    - `dataTypes.py`: Module to group data types used in the functions
     - `fastgate_dn8245f2.py`: Contains the implementation for the Fastgate
                               Huawei DN8245f2
 - **tests**: folder with the unit tests. Each test file in this folder

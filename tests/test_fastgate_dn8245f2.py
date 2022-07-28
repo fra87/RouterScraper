@@ -11,13 +11,16 @@ import unittest
 from unittest import mock
 import base64
 import random
-import requests
 import json
 
 from routerscraper.fastgate_dn8245f2 import fastgate_dn8245f2
-from routerscraper.fastgate_dn8245f2 import connectedDevice, loginResult
 from helpers_fastgate_dn8245f2 import MockResponse, ForceAuthenticatedReply
-from routerscraper.requestResult import resultValue, resultState
+from routerscraper.dataTypes import (
+        resultValue,
+        resultState,
+        loginResult,
+        connectedDevice
+    )
 
 
 class TestFastgate_dn8245f2(unittest.TestCase):
@@ -35,8 +38,6 @@ class TestFastgate_dn8245f2(unittest.TestCase):
         self._pass = 'correctPass'
         self._hashedpass = base64.b64encode(self._pass.encode('ascii'))
         self._component = fastgate_dn8245f2(self._host, self._user, self._pass)
-        # Add a valid service for testing purposes only
-        self._component._validServices.append('testing_library_service')
 
     @staticmethod
     def create_random_token() -> str:
@@ -103,58 +104,19 @@ class TestFastgate_dn8245f2(unittest.TestCase):
         if not skipIP:
             result[f'dev_{idx}_ip'] = connDev.IP
         if not skipFamily:
-            result[f'dev_{idx}_family'] = '1' if connDev.isFamily else '0'
+            isFamily = connDev.additionalInfo.get('isFamily', False)
+            result[f'dev_{idx}_family'] = '1' if isFamily else '0'
         if not skipNetwork:
-            result[f'dev_{idx}_network'] = connDev.Network
+            Network = connDev.additionalInfo.get('Network', '')
+            result[f'dev_{idx}_network'] = Network
 
         return result
 
     ####################################
-    # Check _requestData               #
+    # Check _requestData login         #
     ####################################
 
-    def test_requestData_wrong_service(self):
-        '''Test a wrong service
-        '''
-        with self.assertRaises(ValueError):
-            self._component._requestData('invalid_service')
-
-    @mock.patch('routerscraper.fastgate_dn8245f2.requests.get')
-    def test_requestData_ConnectionError(self, mock_get):
-        '''Test a ConnectionError issue
-        '''
-        def raise_ConnectionError(*args, **kwargs):
-            raise requests.exceptions.ConnectionError()
-        mock_get.side_effect = raise_ConnectionError
-
-        got = self._component._requestData('testing_library_service').state
-        exp = resultState.ConnectionError
-
-        self.assertEqual(got, exp)
-
-    @mock.patch('routerscraper.fastgate_dn8245f2.requests.get')
-    def test_requestData_http_client_error(self, mock_get):
-        '''Test a HTTP client error reply
-        '''
-        mock_get.return_value = MockResponse(status_code=400)
-
-        got = self._component._requestData('testing_library_service').state
-        exp = resultState.ConnectionError
-
-        self.assertEqual(got, exp)
-
-    @mock.patch('routerscraper.fastgate_dn8245f2.requests.get')
-    def test_requestData_http_server_error(self, mock_get):
-        '''Test a HTTP server error reply
-        '''
-        mock_get.return_value = MockResponse(status_code=500)
-
-        got = self._component._requestData('testing_library_service').state
-        exp = resultState.ConnectionError
-
-        self.assertEqual(got, exp)
-
-    @mock.patch('routerscraper.fastgate_dn8245f2.requests.get')
+    @mock.patch('routerscraper.basescraper.requests.get')
     def test_requestData_need_login(self, mock_get):
         '''Test a reply where the server needs login for the service
         '''
@@ -164,13 +126,13 @@ class TestFastgate_dn8245f2(unittest.TestCase):
                                          successResponse)
         mock_get.side_effect = helper.get_response
 
-        got = self._component._requestData('testing_library_service',
+        got = self._component._requestData('connected_device_list',
                                            autologin=False).state
         exp = resultState.MustLogin
 
         self.assertEqual(got, exp)
 
-    @mock.patch('routerscraper.fastgate_dn8245f2.requests.get')
+    @mock.patch('routerscraper.basescraper.requests.get')
     def test_requestData_autologin(self, mock_get):
         '''Test a reply where the server needs login and library performs it
         '''
@@ -184,13 +146,13 @@ class TestFastgate_dn8245f2(unittest.TestCase):
                                          successResponse)
         mock_get.side_effect = helper.get_response
 
-        got = self._component._requestData('testing_library_service',
+        got = self._component._requestData('connected_device_list',
                                            autologin=True)
         exp = resultValue(resultState.Completed, contentStr)
 
         self.assertEqual(got, exp)
 
-    @mock.patch('routerscraper.fastgate_dn8245f2.requests.get')
+    @mock.patch('routerscraper.basescraper.requests.get')
     def test_requestData_autologin_fail_step0(self, mock_get):
         '''Test a reply where the server needs login and login failed at step 0
         '''
@@ -201,13 +163,13 @@ class TestFastgate_dn8245f2(unittest.TestCase):
         helper.setExecuteStep(0, False)
         mock_get.side_effect = helper.get_response
 
-        got = self._component._requestData('testing_library_service',
+        got = self._component._requestData('connected_device_list',
                                            autologin=True).state
         exp = resultState.MustLogin
 
         self.assertEqual(got, exp)
 
-    @mock.patch('routerscraper.fastgate_dn8245f2.requests.get')
+    @mock.patch('routerscraper.basescraper.requests.get')
     def test_requestData_autologin_fail_step1(self, mock_get):
         '''Test a reply where the server needs login and login failed at step 1
         '''
@@ -218,71 +180,9 @@ class TestFastgate_dn8245f2(unittest.TestCase):
         helper.setExecuteStep(1, False)
         mock_get.side_effect = helper.get_response
 
-        got = self._component._requestData('testing_library_service',
+        got = self._component._requestData('connected_device_list',
                                            autologin=True).state
         exp = resultState.MustLogin
-
-        self.assertEqual(got, exp)
-
-    @mock.patch('routerscraper.fastgate_dn8245f2.requests.get')
-    def test_requestData_success_no_json(self, mock_get):
-        '''Test a positive response without JSON
-        '''
-        contentStr = 'test_requestData_success_no_json correct result'
-        positiveResponse = MockResponse(status_code=200)
-        positiveResponse.content = contentStr.encode(positiveResponse.encoding)
-        mock_get.return_value = positiveResponse
-
-        got = self._component._requestData('testing_library_service')
-        exp = resultValue(resultState.Completed, contentStr)
-
-        self.assertEqual(got, exp)
-
-    @mock.patch('routerscraper.fastgate_dn8245f2.requests.get')
-    def test_requestData_success_json(self, mock_get):
-        '''Test a positive response with JSON
-        '''
-        json_data = {'test': 'test_requestData_success_json'}
-        contentStr = json.dumps(json_data)
-        positiveResponse = MockResponse(status_code=200)
-        positiveResponse.json_data = json_data
-        positiveResponse.content = contentStr.encode(positiveResponse.encoding)
-        mock_get.return_value = positiveResponse
-
-        got = self._component._requestData('testing_library_service')
-        exp = resultValue(resultState.Completed, contentStr, json_data)
-
-        self.assertEqual(got, exp)
-
-    @mock.patch('routerscraper.fastgate_dn8245f2.requests.get')
-    def test_requestData_forced_no_json(self, mock_get):
-        '''Test a positive response without JSON when JSON is mandatory
-        '''
-        contentStr = 'test_requestData_forced_no_json correct result'
-        positiveResponse = MockResponse(status_code=200)
-        positiveResponse.content = contentStr.encode(positiveResponse.encoding)
-        mock_get.return_value = positiveResponse
-
-        got = self._component._requestData('testing_library_service',
-                                           forceJSON=True)
-        exp = resultValue(resultState.NotJsonResponse, contentStr)
-
-        self.assertEqual(got, exp)
-
-    @mock.patch('routerscraper.fastgate_dn8245f2.requests.get')
-    def test_requestData_forced_success(self, mock_get):
-        '''Test a positive response without JSON when JSON is mandatory
-        '''
-        json_data = {'test': 'test_requestData_forced_success'}
-        contentStr = json.dumps(json_data)
-        positiveResponse = MockResponse(status_code=200)
-        positiveResponse.json_data = json_data
-        positiveResponse.content = contentStr.encode(positiveResponse.encoding)
-        mock_get.return_value = positiveResponse
-
-        got = self._component._requestData('testing_library_service',
-                                           forceJSON=True)
-        exp = resultValue(resultState.Completed, contentStr, json_data)
 
         self.assertEqual(got, exp)
 
@@ -290,7 +190,7 @@ class TestFastgate_dn8245f2(unittest.TestCase):
     # Check login                      #
     ####################################
 
-    @mock.patch('routerscraper.fastgate_dn8245f2.requests.get')
+    @mock.patch('routerscraper.basescraper.requests.get')
     def test_login_ConnectionError_step1(self, mock_get):
         '''Test login fails for ConnectionError at step 1
         '''
@@ -306,7 +206,7 @@ class TestFastgate_dn8245f2(unittest.TestCase):
                                             'cmd': '7'
                                          }, cookies=None)
 
-    @mock.patch('routerscraper.fastgate_dn8245f2.requests.get')
+    @mock.patch('routerscraper.basescraper.requests.get')
     def test_login_noJson_step1(self, mock_get):
         '''Test login fails for missing JSON at step 1
         '''
@@ -323,7 +223,7 @@ class TestFastgate_dn8245f2(unittest.TestCase):
                                             'cmd': '7'
                                          }, cookies=None)
 
-    @mock.patch('routerscraper.fastgate_dn8245f2.requests.get')
+    @mock.patch('routerscraper.basescraper.requests.get')
     def test_login_locked(self, mock_get):
         '''Test login fails because login was locked
         '''
@@ -344,7 +244,7 @@ class TestFastgate_dn8245f2(unittest.TestCase):
                                             'cmd': '7'
                                          }, cookies=None)
 
-    @mock.patch('routerscraper.fastgate_dn8245f2.requests.get')
+    @mock.patch('routerscraper.basescraper.requests.get')
     def test_login_no_token(self, mock_get):
         '''Test login fails because no token was provided
         '''
@@ -365,7 +265,7 @@ class TestFastgate_dn8245f2(unittest.TestCase):
                                             'cmd': '7'
                                          }, cookies=None)
 
-    @mock.patch('routerscraper.fastgate_dn8245f2.requests.get')
+    @mock.patch('routerscraper.basescraper.requests.get')
     def test_login_ConnectionError_step2(self, mock_get):
         '''Test login fails for ConnectionError at step 2
         '''
@@ -393,7 +293,7 @@ class TestFastgate_dn8245f2(unittest.TestCase):
         mock_get.assert_called_with(f'http://{self._host}/status.cgi',
                                     params=calledParams, cookies=None)
 
-    @mock.patch('routerscraper.fastgate_dn8245f2.requests.get')
+    @mock.patch('routerscraper.basescraper.requests.get')
     def test_login_noJson_step2(self, mock_get):
         '''Test login fails for missing JSON at step 2
         '''
@@ -422,7 +322,7 @@ class TestFastgate_dn8245f2(unittest.TestCase):
         mock_get.assert_called_with(f'http://{self._host}/status.cgi',
                                     params=calledParams, cookies=None)
 
-    @mock.patch('routerscraper.fastgate_dn8245f2.requests.get')
+    @mock.patch('routerscraper.basescraper.requests.get')
     def test_login_wrong_user(self, mock_get):
         '''Test login fails for wrong user
         '''
@@ -437,7 +337,7 @@ class TestFastgate_dn8245f2(unittest.TestCase):
 
         self.assertEqual(got, exp)
 
-    @mock.patch('routerscraper.fastgate_dn8245f2.requests.get')
+    @mock.patch('routerscraper.basescraper.requests.get')
     def test_login_wrong_password(self, mock_get):
         '''Test login fails for wrong password
         '''
@@ -452,7 +352,7 @@ class TestFastgate_dn8245f2(unittest.TestCase):
 
         self.assertEqual(got, exp)
 
-    @mock.patch('routerscraper.fastgate_dn8245f2.requests.get')
+    @mock.patch('routerscraper.basescraper.requests.get')
     def test_login_success(self, mock_get):
         '''Test login was successful
         '''
@@ -471,7 +371,7 @@ class TestFastgate_dn8245f2(unittest.TestCase):
     # Check listDevices                #
     ####################################
 
-    @mock.patch('routerscraper.fastgate_dn8245f2.requests.get')
+    @mock.patch('routerscraper.basescraper.requests.get')
     def test_listDevices_ConnectionError(self, mock_get):
         '''Test listDevices fails for ConnectionError
         '''
@@ -486,7 +386,7 @@ class TestFastgate_dn8245f2(unittest.TestCase):
                                             'nvget': 'connected_device_list',
                                          }, cookies=None)
 
-    @mock.patch('routerscraper.fastgate_dn8245f2.requests.get')
+    @mock.patch('routerscraper.basescraper.requests.get')
     def test_listDevices_noJson(self, mock_get):
         '''Test listDevices fails for missing JSON
         '''
@@ -502,7 +402,7 @@ class TestFastgate_dn8245f2(unittest.TestCase):
                                             'nvget': 'connected_device_list',
                                          }, cookies=None)
 
-    @mock.patch('routerscraper.fastgate_dn8245f2.requests.get')
+    @mock.patch('routerscraper.basescraper.requests.get')
     def test_listDevices_emptyJson(self, mock_get):
         '''Test listDevices has no output for an empty JSON
         '''
@@ -519,7 +419,7 @@ class TestFastgate_dn8245f2(unittest.TestCase):
                                             'nvget': 'connected_device_list',
                                          }, cookies=None)
 
-    @mock.patch('routerscraper.fastgate_dn8245f2.requests.get')
+    @mock.patch('routerscraper.basescraper.requests.get')
     def test_listDevices_emptyItem(self, mock_get):
         '''Test listDevices has no output for an empty connected_device_list
         '''
@@ -536,12 +436,13 @@ class TestFastgate_dn8245f2(unittest.TestCase):
                                             'nvget': 'connected_device_list',
                                          }, cookies=None)
 
-    @mock.patch('routerscraper.fastgate_dn8245f2.requests.get')
+    @mock.patch('routerscraper.basescraper.requests.get')
     def test_listDevices_missingTotal(self, mock_get):
         '''Test listDevices has no output when there is no total
         '''
         connDevs = [
-                connectedDevice('N', 'M', 'I', False, 'n')
+                connectedDevice('A', 'B', 'C',
+                                {'isFamily': False, 'Network': 'E'}),
             ]
         connect_list = {}
         for i, c in enumerate(connDevs):
@@ -559,14 +460,17 @@ class TestFastgate_dn8245f2(unittest.TestCase):
                                             'nvget': 'connected_device_list',
                                          }, cookies=None)
 
-    @mock.patch('routerscraper.fastgate_dn8245f2.requests.get')
+    @mock.patch('routerscraper.basescraper.requests.get')
     def test_listDevices_success(self, mock_get):
         '''Test listDevices succeeds
         '''
         connDevs = [
-                connectedDevice('A', 'B', 'C', False, 'E'),
-                connectedDevice('J', 'I', 'H', True, 'F'),
-                connectedDevice('K', 'L', 'M', False, 'O')
+                connectedDevice('A', 'B', 'C',
+                                {'isFamily': False, 'Network': 'E'}),
+                connectedDevice('J', 'I', 'H',
+                                {'isFamily': True, 'Network': 'F'}),
+                connectedDevice('K', 'L', 'M',
+                                {'isFamily': False, 'Network': 'O'})
             ]
         connect_list = {'total_num': str(len(connDevs))}
         for i, c in enumerate(connDevs):
@@ -584,14 +488,17 @@ class TestFastgate_dn8245f2(unittest.TestCase):
                                             'nvget': 'connected_device_list',
                                          }, cookies=None)
 
-    @mock.patch('routerscraper.fastgate_dn8245f2.requests.get')
+    @mock.patch('routerscraper.basescraper.requests.get')
     def test_listDevices_success_more(self, mock_get):
         '''Test listDevices succeeds and ignores too many devices
         '''
         connDevs = [
-                connectedDevice('A', 'B', 'C', False, 'E'),
-                connectedDevice('J', 'I', 'H', True, 'F'),
-                connectedDevice('K', 'L', 'M', False, 'O')
+                connectedDevice('A', 'B', 'C',
+                                {'isFamily': False, 'Network': 'E'}),
+                connectedDevice('J', 'I', 'H',
+                                {'isFamily': True, 'Network': 'F'}),
+                connectedDevice('K', 'L', 'M',
+                                {'isFamily': False, 'Network': 'O'})
             ]
         connect_list = {'total_num': 2}
         for i, c in enumerate(connDevs):
@@ -609,13 +516,15 @@ class TestFastgate_dn8245f2(unittest.TestCase):
                                             'nvget': 'connected_device_list',
                                          }, cookies=None)
 
-    @mock.patch('routerscraper.fastgate_dn8245f2.requests.get')
+    @mock.patch('routerscraper.basescraper.requests.get')
     def test_listDevices_success_fewer(self, mock_get):
         '''Test listDevices succeeds and ignores too few devices
         '''
         connDevs = [
-                connectedDevice('A', 'B', 'C', False, 'E'),
-                connectedDevice('J', 'I', 'H', True, 'F')
+                connectedDevice('A', 'B', 'C',
+                                {'isFamily': False, 'Network': 'E'}),
+                connectedDevice('J', 'I', 'H',
+                                {'isFamily': True, 'Network': 'F'})
             ]
         connect_list = {'total_num': 3}
         for i, c in enumerate(connDevs):
@@ -633,11 +542,12 @@ class TestFastgate_dn8245f2(unittest.TestCase):
                                             'nvget': 'connected_device_list',
                                          }, cookies=None)
 
-    @mock.patch('routerscraper.fastgate_dn8245f2.requests.get')
+    @mock.patch('routerscraper.basescraper.requests.get')
     def test_listDevices_success_fewerInfo(self, mock_get):
         '''Test listDevices succeeds and ignores when some info is missing
         '''
-        c = connectedDevice('A', 'B', 'C', False, 'E')
+        c = connectedDevice('A', 'B', 'C',
+                            {'isFamily': False, 'Network': 'E'})
         c_lst = {'total_num': 20}
         c_lst.update(self.connectedDevice_to_dict(c, 0))
         c_lst.update(self.connectedDevice_to_dict(c, 1, skipName=True))
