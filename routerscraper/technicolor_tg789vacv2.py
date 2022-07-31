@@ -16,6 +16,7 @@ import re
 
 from .basescraper import baseScraper
 from .dataTypes import (
+        dataService,
         resultValue,
         responsePayload,
         resultState,
@@ -27,23 +28,23 @@ class technicolor_tg789vacv2(baseScraper):
     '''Class for scraping data from Technicolor TG789vac v2
     '''
 
-    # List of valid services
-    _validServices = [
-        '/',
-        'authenticate',
-        'modals/device-modal.lp',
-    ]
+    # List of services URLs
+    _dataServicesUrl = {
+        dataService.Home: '',
+        dataService.Login: 'authenticate',
+        dataService.ConnectedDevices: 'modals/device-modal.lp',
+    }
 
     # Fixed value for k parameter in authentication
     k_val = '05b9e8ef059c6b32ea59fc1d322d37f04aa30bae5aa9003b8321e21ddb04e300'
 
-    def _requestData(self, service: str, params: dict[str, str] = None,
+    def _requestData(self, service: dataService, params: dict[str, str] = None,
                      autologin: bool = True, forceJSON: bool = False,
                      postRequest: bool = False) -> resultValue:
         '''Request data from the router
 
         Args:
-            service (str): The service to request
+            service (dataService): The service to request
             params (dict[str,str], optional): Additional parameters to pass to
                                               the request. Defaults to None.
             autologin (bool, optional): If necessary, when user is not logged
@@ -73,37 +74,47 @@ class technicolor_tg789vacv2(baseScraper):
             pass
         return result
 
-    def _requestData_url(self, service: str, params: dict[str, str]) -> str:
-        '''Build the URL from the requestData parameters
+    def _requestData_validService(self, service: dataService) -> bool:
+        '''Check if the service is a valid service for the router
 
         Args:
-            service (str): The service being requested
-            params (dict[str, str]): The additional GET params being requested
+            service (dataService): The service to verify
+
+        Returns:
+            bool: True if the service is valid
+        '''
+        return service in self._dataServicesUrl
+
+    def _requestData_url(self, service: dataService, params: dict[str, str]
+                         ) -> str:
+        '''Build the URL from the requestData parameters
+
+        If the URL cannot be built, None is returned
+
+        Args:
+            service (dataService): The service being requested
+            params (dict[str, str]): The additional params being requested
 
         Returns:
             str: The URL for the request
         '''
-        service = service.strip('/')
-        return f'http://{self._host}/{service}'
+        result = None
+        if service in self._dataServicesUrl:
+            result = f'http://{self._host}/{self._dataServicesUrl[service]}'
+        return result
 
-    def _requestData_params(self, service: str, params: dict[str, str]
+    def _requestData_params(self, service: dataService, params: dict[str, str]
                             ) -> dict[str, str]:
         '''Build the GET params from the requestData parameters
 
         Args:
-            service (str): The service being requested
-            params (dict[str, str]): The additional GET params being requested
+            service (dataService): The service being requested
+            params (dict[str, str]): The additional params being requested
 
         Returns:
             dict[str, str]: The GET params
         '''
-
-        if isinstance(params, dict):
-            result = params
-        else:
-            result = {}
-
-        return result
+        return params if isinstance(params, dict) else {}
 
     @staticmethod
     def isLoginRequest(payload: responsePayload) -> bool:
@@ -139,7 +150,7 @@ class technicolor_tg789vacv2(baseScraper):
             self._CSRFtoken = None
 
         # Initiate communication to get the CSRF token
-        firstRequest = self._requestData('/', autologin=False)
+        firstRequest = self._requestData(dataService.Home, autologin=False)
 
         if firstRequest.state == resultState.Completed:
             # Already logged in
@@ -161,7 +172,7 @@ class technicolor_tg789vacv2(baseScraper):
 
         # Send initial parameters
         secondParams = {'CSRFtoken': self._CSRFtoken, 'I': I, 'A': A.hex()}
-        secondRequest = self._requestData('authenticate', params=secondParams,
+        secondRequest = self._requestData(dataService.Login, params=secondParams,
                                           autologin=False, forceJSON=True, postRequest=True)
 
         if secondRequest.state != resultState.Completed:
@@ -184,7 +195,7 @@ class technicolor_tg789vacv2(baseScraper):
 
         # Send response
         thirdParams = {'CSRFtoken': self._CSRFtoken, 'M': M.hex()}
-        thirdRequest = self._requestData('authenticate', params=thirdParams,
+        thirdRequest = self._requestData(dataService.Login, params=thirdParams,
                                          autologin=False, forceJSON=True, postRequest=True)
 
         if thirdRequest.state != resultState.Completed:
@@ -210,7 +221,7 @@ class technicolor_tg789vacv2(baseScraper):
         Returns:
             list[connectedDevice]: The list of connected devices
         '''
-        res = self._requestData('/')
+        res = self._requestData(dataService.ConnectedDevices)
 
         # If the request was not successful return empty list
         if res.state != resultState.Completed:
@@ -223,7 +234,6 @@ class technicolor_tg789vacv2(baseScraper):
 
         if devicesTable and devicesTable.tbody:
             for row in devicesTable.tbody.findAll('tr'):
-                #Status</th><th>Hostname</th><th>IP address</th><th>MAC address</th><th>Type</th><th>Port</th>
                 rowTokens = row.findAll('td')
 
                 Status = ', '.join(cl for cl in rowTokens[0].div['class'] if cl != 'light')

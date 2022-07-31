@@ -9,10 +9,18 @@
 
 from __future__ import annotations
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import Enum, auto
 from typing import Any, Union
 import json
 from bs4 import BeautifulSoup
+
+
+class dataService(Enum):
+    '''Enum expressing the services that can be requested
+    '''
+    Home = auto()
+    Login = auto()
+    ConnectedDevices = auto()
 
 
 class resultState(Enum):

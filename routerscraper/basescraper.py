@@ -12,6 +12,7 @@ from typing import Any
 import requests
 
 from .dataTypes import (
+        dataService,
         resultValue,
         responsePayload,
         resultState,
@@ -23,9 +24,6 @@ from .dataTypes import (
 class baseScraper(ABC):
     '''Base class for the router scraper classes
     '''
-
-    # List of valid services (to be overriden by the classes implementation)
-    _validServices = []
 
     def __init__(self, host: str, user: str, password: str):
         '''Initialize the object
@@ -64,7 +62,7 @@ class baseScraper(ABC):
         '''
         self._session = requests.Session()
 
-    def _requestData(self, service: str, params: dict[str, str] = None,
+    def _requestData(self, service: dataService, params: dict[str, str] = None,
                      autologin: bool = True, forceJSON: bool = False, postRequest: bool = False
                      ) -> resultValue:
         '''Request data from the router
@@ -73,7 +71,7 @@ class baseScraper(ABC):
         the "data" property for POST requests
 
         Args:
-            service (str): The service to request
+            service (dataService): The service to request
             params (dict[str,str], optional): Additional parameters to pass to
                                               the request. Defaults to None.
             autologin (bool, optional): If necessary, when user is not logged
@@ -92,10 +90,8 @@ class baseScraper(ABC):
         Returns:
             resultValue: The result of the request
         '''
-        if service not in self._validServices:
-            errorMessage = (f'Invalid service requested: service {service}, '
-                            f'valid services {self._validServices}')
-            raise ValueError(errorMessage)
+        if not self._requestData_validService(service):
+            raise ValueError(f'Invalid service requested: service {service}')
 
         # Build the URL
         reqUrl = self._requestData_url(service, params)
@@ -140,12 +136,27 @@ class baseScraper(ABC):
         return resultValue(resultState.Completed, payload=payload)
 
     @abstractmethod
-    def _requestData_url(self, service: str, params: dict[str, str]) -> str:
-        '''Build the URL from the requestData parameters
+    def _requestData_validService(self, service: dataService) -> bool:
+        '''Check if the service is a valid service for the router
 
         Args:
-            service (str): The service being requested
-            params (dict[str, str]): The additional GET params being requested
+            service (dataService): The service to verify
+
+        Returns:
+            bool: True if the service is valid
+        '''
+        pass
+
+    @abstractmethod
+    def _requestData_url(self, service: dataService, params: dict[str, str]
+                         ) -> str:
+        '''Build the URL from the requestData parameters
+
+        If the URL cannot be built, None is returned
+
+        Args:
+            service (dataService): The service being requested
+            params (dict[str, str]): The additional params being requested
 
         Returns:
             str: The URL for the request
@@ -153,13 +164,13 @@ class baseScraper(ABC):
         pass
 
     @abstractmethod
-    def _requestData_params(self, service: str, params: dict[str, str]
+    def _requestData_params(self, service: dataService, params: dict[str, str]
                             ) -> dict[str, str]:
         '''Build the GET params from the requestData parameters
 
         Args:
-            service (str): The service being requested
-            params (dict[str, str]): The additional GET params being requested
+            service (dataService): The service being requested
+            params (dict[str, str]): The additional params being requested
 
         Returns:
             dict[str, str]: The GET params
