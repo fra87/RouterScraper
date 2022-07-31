@@ -75,8 +75,11 @@ class fastgate_dn8245f2(baseScraper):
         '''
         return jsonItm.get('login_confirm', {}).get('login_status') == '0'
 
-    def login(self, cleanStart: bool = False) -> loginResult:
+    def _internal_login(self, cleanStart: bool = False) -> loginResult:
         '''Perform a login action
+
+        Note: this function must not be used directly, but only through the
+        wrapping login(cleanStart) function.
 
         Args:
             cleanStart (bool, optional): Remove cookies and start from scratch.

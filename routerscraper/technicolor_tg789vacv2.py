@@ -62,7 +62,6 @@ class technicolor_tg789vacv2(baseScraper):
         Returns:
             resultValue: The result of the request
         '''
-        print(f'REQ {service} - {params}')
         result = super()._requestData(service, params, autologin, forceJSON,
                                       postRequest)
         try:
@@ -121,8 +120,11 @@ class technicolor_tg789vacv2(baseScraper):
             result = str(payload.as_html().title) == '<title>Login</title>'
         return result
 
-    def login(self, cleanStart: bool = False) -> loginResult:
+    def _internal_login(self, cleanStart: bool = False) -> loginResult:
         '''Perform a login action
+
+        Note: this function must not be used directly, but only through the
+        wrapping login(cleanStart) function.
 
         Args:
             cleanStart (bool, optional): Remove cookies and start from scratch.
@@ -208,5 +210,39 @@ class technicolor_tg789vacv2(baseScraper):
         Returns:
             list[connectedDevice]: The list of connected devices
         '''
-        print(self._requestData('modals/device-modal.lp'))
-        return []
+        res = self._requestData('/')
+
+        # If the request was not successful return empty list
+        if res.state != resultState.Completed:
+            print(res)
+            return []
+
+        devicesTable = res.payload.as_html().find('table', id='devices')
+
+        result = []
+
+        if devicesTable and devicesTable.tbody:
+            for row in devicesTable.tbody.findAll('tr'):
+                #Status</th><th>Hostname</th><th>IP address</th><th>MAC address</th><th>Type</th><th>Port</th>
+                rowTokens = row.findAll('td')
+
+                Status = ', '.join(cl for cl in rowTokens[0].div['class'] if cl != 'light')
+                Hostname = rowTokens[1].text
+                IP = rowTokens[2].text
+                MAC = rowTokens[3].text
+                Type = rowTokens[4].text
+                Port = rowTokens[5].text
+
+                if IP:
+                    # Device is connected if it has an IP
+                    result.append(connectedDevice(
+                        Name=Hostname,
+                        MAC=MAC,
+                        IP=IP,
+                        additionalInfo={
+                            'Status': Status,
+                            'Type': Type,
+                            'Port': Port
+                        }))
+
+        return result

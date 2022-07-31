@@ -39,6 +39,25 @@ class baseScraper(ABC):
         self._user = user
         self._password = password
         self.resetSession()
+        self._lastLoginResult = loginResult.NotLoggedIn
+
+    @property
+    def lastLoginResult(self) -> loginResult:
+        '''Return the last login result
+
+        Returns:
+            loginResult: The last login result
+        '''
+        return self._lastLoginResult
+
+    @property
+    def isLoggedIn(self) -> bool:
+        '''Get whether the object is logged in
+
+        Returns:
+            bool: True if the object is logged in
+        '''
+        return self._lastLoginResult == loginResult.Success
 
     def resetSession(self):
         '''Resets the current session object
@@ -109,6 +128,7 @@ class baseScraper(ABC):
 
         # Verify if this was a login request by the router
         if self.isLoginRequest(payload):
+            self._lastLoginResult = loginResult.NotLoggedIn
             if autologin and self.login() == loginResult.Success:
                 # If the login was successful, retry the request
                 return self._requestData(service, params,
@@ -158,9 +178,30 @@ class baseScraper(ABC):
         '''
         return False
 
-    @abstractmethod
     def login(self, cleanStart: bool = False) -> loginResult:
         '''Perform a login action
+
+        Note: this is just a wrapper function used to track the last login
+        status. Subclasses need to implement the _internal_login function
+        that actually performs the login
+
+        Args:
+            cleanStart (bool, optional): Remove cookies and start from scratch.
+                                         Defaults to False.
+
+        Returns:
+            loginResult: The login outcome
+        '''
+        result = self._internal_login(cleanStart)
+        self._lastLoginResult = result
+        return result
+
+    @abstractmethod
+    def _internal_login(self, cleanStart: bool = False) -> loginResult:
+        '''Perform a login action
+
+        Note: this function must not be used directly, but only through the
+        wrapping login(cleanStart) function.
 
         Args:
             cleanStart (bool, optional): Remove cookies and start from scratch.

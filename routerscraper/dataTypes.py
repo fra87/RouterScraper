@@ -175,6 +175,7 @@ class loginResult(Enum):
     '''
 
     Success = 'Login successful'
+    NotLoggedIn = 'Login was not attempted'
     ConnectionError = 'Connection error'
     Locked = 'Login is locked'
     NoToken = 'Could not extract token from request'
