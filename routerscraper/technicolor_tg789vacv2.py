@@ -105,14 +105,14 @@ class technicolor_tg789vacv2(baseScraper):
 
     def _requestData_params(self, service: dataService, params: dict[str, str]
                             ) -> dict[str, str]:
-        '''Build the GET params from the requestData parameters
+        '''Build the params from the requestData parameters
 
         Args:
             service (dataService): The service being requested
             params (dict[str, str]): The additional params being requested
 
         Returns:
-            dict[str, str]: The GET params
+            dict[str, str]: The params
         '''
         return params if isinstance(params, dict) else {}
 
