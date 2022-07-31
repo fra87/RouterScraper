@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 ###############################################################################
 #
-# fastgate_dn8245f2 - Unit testing file for Fastgate Huawei DN8245f2
+# technicolor_tg789vacv2 - Unit testing file for Technicolor TG789vac v2
 #
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2022 fra87

@@ -75,12 +75,19 @@ class fastgate_dn8245f2(baseScraper):
         '''
         return jsonItm.get('login_confirm', {}).get('login_status') == '0'
 
-    def login(self) -> loginResult:
+    def login(self, cleanStart: bool = False) -> loginResult:
         '''Perform a login action
+
+        Args:
+            cleanStart (bool, optional): Remove cookies and start from scratch.
+                                         Defaults to False.
 
         Returns:
             loginResult: The login outcome
         '''
+
+        if cleanStart:
+            self.resetSession()
 
         # First step: perform a cmd = 7 request to obtain the token
         firstReqResult = self._requestData(

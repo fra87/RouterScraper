@@ -106,7 +106,7 @@ class TestBaseScraper(unittest.TestCase):
 
         got = self._component._requestData('testing_library_service',
                                            autologin=True)
-        exp = resultValue(resultState.Completed, 'success')
+        exp = resultValue(resultState.Completed, payload='success')
 
         self.assertEqual(got, exp)
 
@@ -133,7 +133,7 @@ class TestBaseScraper(unittest.TestCase):
         mock_get.return_value = positiveResponse
 
         got = self._component._requestData('testing_library_service')
-        exp = resultValue(resultState.Completed, contentStr)
+        exp = resultValue(resultState.Completed, payload=contentStr)
 
         self.assertEqual(got, exp)
 
@@ -149,7 +149,7 @@ class TestBaseScraper(unittest.TestCase):
         mock_get.return_value = positiveResponse
 
         got = self._component._requestData('testing_library_service')
-        exp = resultValue(resultState.Completed, contentStr, json_data)
+        exp = resultValue(resultState.Completed, payload=contentStr)
 
         self.assertEqual(got, exp)
 
@@ -164,7 +164,7 @@ class TestBaseScraper(unittest.TestCase):
 
         got = self._component._requestData('testing_library_service',
                                            forceJSON=True)
-        exp = resultValue(resultState.NotJsonResponse, contentStr)
+        exp = resultValue(resultState.NotJsonResponse, payload=contentStr, error="Not a JSON response")
 
         self.assertEqual(got, exp)
 
@@ -181,6 +181,6 @@ class TestBaseScraper(unittest.TestCase):
 
         got = self._component._requestData('testing_library_service',
                                            forceJSON=True)
-        exp = resultValue(resultState.Completed, contentStr, json_data)
+        exp = resultValue(resultState.Completed, payload=contentStr)
 
         self.assertEqual(got, exp)

@@ -13,6 +13,7 @@ import requests
 
 from .dataTypes import (
         resultValue,
+        responsePayload,
         resultState,
         loginResult,
         connectedDevice
@@ -37,12 +38,20 @@ class baseScraper(ABC):
         self._host = host
         self._user = user
         self._password = password
-        self._session = None
+        self.resetSession()
+
+    def resetSession(self):
+        '''Resets the current session object
+        '''
+        self._session = requests.Session()
 
     def _requestData(self, service: str, params: dict[str, str] = None,
-                     autologin: bool = True, forceJSON: bool = False
+                     autologin: bool = True, forceJSON: bool = False, postRequest: bool = False
                      ) -> resultValue:
         '''Request data from the router
+
+        params will be passed in the "params" property for GET requests and in
+        the "data" property for POST requests
 
         Args:
             service (str): The service to request
@@ -54,6 +63,9 @@ class baseScraper(ABC):
             forceJSON (bool, optional): If True, result will be an error if
                                         payload is not a valid JSON string.
                                         Defaults to False.
+            postRequest (bool, optional): If True, a POST request will be sent.
+                                          If False, a GET request will be sent.
+                                          Defaults to False.
 
         Raises:
             ValueError: If service is not in the _validServices list
@@ -66,53 +78,46 @@ class baseScraper(ABC):
                             f'valid services {self._validServices}')
             raise ValueError(errorMessage)
 
-        # Build the GET URL
-        GETurl = self._requestData_url(service, params)
+        # Build the URL
+        reqUrl = self._requestData_url(service, params)
 
-        # Build the GET params
-        GETparams = self._requestData_params(service, params)
-
-        # Build the cookies variable
-        session = self._session if self._session else None
+        # Build the params
+        reqParams = self._requestData_params(service, params)
 
         try:
             # Perform a request
-            result = requests.get(GETurl, params=GETparams, cookies=session)
+            if postRequest:
+                requestResult = self._session.post(reqUrl, data=reqParams)
+            else:
+                requestResult = self._session.get(reqUrl, params=reqParams)
 
             # Check if request was successful
-            result.raise_for_status()
+            requestResult.raise_for_status()
 
         except (requests.exceptions.ConnectionError,
                 requests.exceptions.HTTPError) as e:
-            return resultValue(resultState.ConnectionError, str(e))
+            return resultValue(resultState.ConnectionError, error=str(e))
 
-        # Extract cookies from result
-        cookies = result.cookies if result.cookies else None
+        # Extract payload and start building the result object
+        payload = responsePayload.buildFromPayload(requestResult.content,
+                                                   requestResult.encoding)
 
-        # Extract payload
-        payload = result.content.decode(result.encoding)
-
-        # Extract JSON representation if available
-        try:
-            jsonItm = result.json()
-        except requests.exceptions.JSONDecodeError:
-            if forceJSON:
-                return resultValue(resultState.NotJsonResponse, payload,
-                                   cookies=cookies)
-            jsonItm = {}
+        # Check if JSON was respected
+        if forceJSON and payload.as_json() is None:
+            return resultValue(resultState.NotJsonResponse, payload=payload,
+                               error="Not a JSON response")
 
         # Verify if this was a login request by the router
-        if self.isLoginRequest(payload, jsonItm, cookies):
+        if self.isLoginRequest(payload):
             if autologin and self.login() == loginResult.Success:
                 # If the login was successful, retry the request
                 return self._requestData(service, params,
                                          autologin=False,
                                          forceJSON=forceJSON)
             else:
-                return resultValue(resultState.MustLogin, payload, jsonItm,
-                                   cookies)
+                return resultValue(resultState.MustLogin, payload=payload)
 
-        return resultValue(resultState.Completed, payload, jsonItm, cookies)
+        return resultValue(resultState.Completed, payload=payload)
 
     @abstractmethod
     def _requestData_url(self, service: str, params: dict[str, str]) -> str:
@@ -142,13 +147,11 @@ class baseScraper(ABC):
         pass
 
     @staticmethod
-    def isLoginRequest(payload: str, jsonItm: dict, cookies: Any) -> bool:
+    def isLoginRequest(payload: responsePayload) -> bool:
         '''Check if the extracted data corresponds to a login request
 
         Args:
-            payload (str): The raw payload of the response
-            jsonItm (dict): The JSON representation of the response
-            cookies (Any): The cookies in the response
+            result (responsePayload): The payload object to be checked
 
         Returns:
             bool: True if the data corresponds to a login request
@@ -156,8 +159,12 @@ class baseScraper(ABC):
         return False
 
     @abstractmethod
-    def login(self) -> loginResult:
+    def login(self, cleanStart: bool = False) -> loginResult:
         '''Perform a login action
+
+        Args:
+            cleanStart (bool, optional): Remove cookies and start from scratch.
+                                         Defaults to False.
 
         Returns:
             loginResult: The login outcome
