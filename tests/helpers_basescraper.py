@@ -11,47 +11,16 @@ from dataclasses import dataclass
 from typing import Any
 import requests
 
+from helpers_common import MockResponse, SessionMock_Auth_Base
+
 from routerscraper.basescraper import baseScraper
 from routerscraper.dataTypes import (
+        dataService,
         resultState,
+        responsePayload,
         loginResult,
         connectedDevice
     )
-
-
-@dataclass
-class MockResponse:
-    '''Class mocking a request response
-    '''
-    content: bytes = b''
-    json_data: dict = None
-    status_code: int = 404
-    encoding: str = 'ISO-8859-1'
-    cookies: str = None
-    # cookies is not a string in the class, but they are for internal use only
-    # anyway, so the type just needs to be consistent
-
-    def json(self) -> dict:
-        '''Return the JSON representation of the item
-
-        Raises:
-            requests.exceptions.JSONDecodeError: No JSON data available
-
-        Returns:
-            dict: The JSON dictionary
-        '''
-        if self.json_data:
-            return self.json_data
-        raise requests.exceptions.JSONDecodeError('', '', 0)
-
-    def raise_for_status(self):
-        '''Raise an exception if the request was not successful
-
-        Raises:
-            requests.exceptions.HTTPError: Server replied with an error
-        '''
-        if self.status_code >= 400:
-            raise requests.exceptions.HTTPError()
 
 
 class tester_for_requestData(baseScraper):
@@ -59,65 +28,84 @@ class tester_for_requestData(baseScraper):
     '''
 
     # List of valid services
-    _validServices = [
-        'testing_library_service',
-        'login'
-    ]
+    _dataServiceUrls = {
+        dataService.TestValid: 'testing_library_service',
+        dataService.Login: 'login'
+    }
 
-    def _requestData_url(self, service: str, params: dict[str, str]) -> str:
-        '''Build the URL from the requestData parameters
+    def _requestData_validService(self, service: dataService) -> bool:
+        '''Check if the service is a valid service for the router
 
         Args:
-            service (str): The service being requested
-            params (dict[str, str]): The additional GET params being requested
+            service (dataService): The service to verify
+
+        Returns:
+            bool: True if the service is valid
+        '''
+        return service in self._dataServiceUrls
+
+    def _requestData_url(self, service: dataService, params: dict[str, str]
+                         ) -> str:
+        '''Build the URL from the requestData parameters
+
+        If the URL cannot be built, None is returned
+
+        Args:
+            service (dataService): The service being requested
+            params (dict[str, str]): The additional params being requested
 
         Returns:
             str: The URL for the request
         '''
-        return f'{service}'
+        result = ''
+        if service in self._dataServiceUrls:
+            result = self._dataServiceUrls[service]
+        return result
 
-    def _requestData_params(self, service: str, params: dict[str, str]
+    def _requestData_params(self, service: dataService, params: dict[str, str]
                             ) -> dict[str, str]:
-        '''Build the GET params from the requestData parameters
+        '''Build the params from the requestData parameters
 
         Args:
-            service (str): The service being requested
-            params (dict[str, str]): The additional GET params being requested
+            service (dataService): The service being requested
+            params (dict[str, str]): The additional params being requested
 
         Returns:
-            dict[str, str]: The GET params
+            dict[str, str]: The params
         '''
         return params if isinstance(params, dict) else {}
 
     @staticmethod
-    def isLoginRequest(payload: str, jsonItm: dict, cookies: Any) -> bool:
+    def isLoginRequest(payload: responsePayload) -> bool:
         '''Check if the extracted data corresponds to a login request
 
         Args:
-            payload (str): The raw payload of the response
-            jsonItm (dict): The JSON representation of the response
-            cookies (Any): The cookies in the response
+            result (responsePayload): The payload object to be checked
 
         Returns:
             bool: True if the data corresponds to a login request
         '''
-        return payload == 'mustlogin'
+        return payload.as_str() == 'mustlogin'
 
-    def login(self) -> loginResult:
+    def _internal_login(self, cleanStart: bool = False) -> loginResult:
         '''Perform a login action
+
+        Note: this function must not be used directly, but only through the
+        wrapping login(cleanStart) function.
+
+        Args:
+            cleanStart (bool, optional): Remove cookies and start from scratch.
+                                         Defaults to False.
 
         Returns:
             loginResult: The login outcome
         '''
-
-        result = self._requestData('login', {}, autologin=False,
+        result = self._requestData(dataService.Login, {}, autologin=False,
                                    forceJSON=False)
 
         # If request is not completed we were not able to login
         if result.state != resultState.Completed:
             return loginResult.ConnectionError
-
-        self._session = result.cookies
 
         return loginResult.Success
 
@@ -130,40 +118,29 @@ class tester_for_requestData(baseScraper):
         return []
 
 
-class ForceAuthenticatedReply:
-    '''Class to mimic the authentication steps
+class SessionMock_Auth(SessionMock_Auth_Base):
+    '''Class to mock the Session object to mimic the authentication steps
     '''
 
-    def __init__(self, positiveResponse: bool):
+    def __init__(self):
         '''Initialize the variables
-
-        Args:
-            positiveResponse (bool): True if the response to the login request
-                                     must be positive
         '''
-        self._positiveResponse = positiveResponse
+        super().__init__()
+        self._authenticated = False
+        self.positiveResponse = True
 
-    def get_response(self, *args, **kwargs) -> MockResponse:
-        '''Get the response to the GET request performed
-
-        Returns:
-            MockResponse: The response to the GET request
-        '''
-        # Arguments extraction
-        url = args[0] if len(args) >= 1 else ''
-        params = args[1] if len(args) >= 2 else {}
-
-        url = kwargs.get('url', url)
-        params = kwargs.get('params', params)
-        cookies = kwargs.get('cookies', '')
+    def _internal_process(self, type, url, params, args, kwargs) -> MockResponse:
+        if type != 'get':
+            return MockResponse(status_code=400)
 
         # Login requested
         if url == 'login':
-            status_code = 200 if self._positiveResponse else 400
-            return MockResponse(status_code=status_code, cookies='logged')
+            status_code = 200 if self.positiveResponse else 400
+            self._authenticated = self.positiveResponse
+            return MockResponse(status_code=status_code)
 
         # Request was authenticated; return success response
-        if cookies == 'logged':
+        if self._authenticated:
             return MockResponse(status_code=200, content=b'success')
 
         return MockResponse(status_code=200, content=b'mustlogin')

@@ -28,6 +28,8 @@ routers.
              implements tests linked to the corresponding file in the
              **routerscraper** folder; if necessary, helper files group
              functions needed by the corresponding test file.
+             `helpers_common.py` implements some classes useful for all the
+             tests.
 - **developerscripts**: folder with scripts for developers
     - `create_venv.sh`: Script to create the virtual environment and install
                         dependencies

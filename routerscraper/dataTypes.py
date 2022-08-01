@@ -9,7 +9,7 @@
 
 from __future__ import annotations
 from dataclasses import dataclass, field
-from enum import Enum, auto
+from enum import Enum
 from typing import Any, Union
 import json
 from bs4 import BeautifulSoup
@@ -18,9 +18,12 @@ from bs4 import BeautifulSoup
 class dataService(Enum):
     '''Enum expressing the services that can be requested
     '''
-    Home = auto()
-    Login = auto()
-    ConnectedDevices = auto()
+    Home = 'main page'
+    Login = 'login service'
+    ConnectedDevices = 'get connected devices'
+    TestValid = 'test service - to be implemented in test classes'
+    TestNotValid = 'test service - not to be implemented in test classes'
+
 
 
 class resultState(Enum):
@@ -53,6 +56,27 @@ class responsePayload:
             str: The string representation of the item
         '''
         return self._payload
+
+    def __eq__(self, other: Any) -> bool:
+        '''Test if the two objects are equal
+
+        If the other object is not a responsePayload object, it will be
+        converted into such an object through the buildFromPayload function. If
+        this function fails, the payloads are not equal
+
+        Args:
+            other (Any): The other response payload
+
+        Returns:
+            bool: True if the two objects are equal
+        '''
+        if not isinstance(other, responsePayload):
+            try:
+                other = responsePayload.buildFromPayload(other)
+            except ValueError:
+                # other could not be converted; payloads are different
+                return False
+        return self._payload == other._payload
 
     def as_str(self) -> str:
         '''The payload in string format
@@ -149,6 +173,24 @@ class resultValue:
             else:
                 pl = "NONE"
         return f'("{self._state}, {pl}")'
+
+    def __eq__(self, other: resultValue) -> bool:
+        '''Test if the two objects are equal
+
+        If the other object is not a resultValue object, function will return
+        False
+
+        Args:
+            other (resultValue): The other resultValue object
+
+        Returns:
+            bool: True if the two objects are equal
+        '''
+        if not isinstance(other, resultValue):
+            return False
+        return (self._state == other._state and
+                self._payload == other._payload and
+                self._error == other._error)
 
     @property
     def state(self) -> resultState:
