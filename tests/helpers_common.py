@@ -9,7 +9,19 @@
 
 from dataclasses import dataclass
 import requests
+import random
 from abc import ABC, abstractmethod
+
+
+def randomHexString(numChars: int) -> str:
+    '''Generate a random HEX string
+
+    String will be numChars chars long
+
+    Returns:
+        str: A random string
+    '''
+    return (f'%0{numChars}x') % random.randrange(16**numChars)
 
 
 @dataclass
@@ -17,25 +29,8 @@ class MockResponse:
     '''Class mocking a request response
     '''
     content: bytes = b''
-    json_data: dict = None
     status_code: int = 404
     encoding: str = 'ISO-8859-1'
-    cookies: str = None
-    # cookies is not a string in the class, but they are for internal use only
-    # anyway, so the type just needs to be consistent
-
-    def json(self) -> dict:
-        '''Return the JSON representation of the item
-
-        Raises:
-            requests.exceptions.JSONDecodeError: No JSON data available
-
-        Returns:
-            dict: The JSON dictionary
-        '''
-        if self.json_data:
-            return self.json_data
-        raise requests.exceptions.JSONDecodeError('', '', 0)
 
     def raise_for_status(self):
         '''Raise an exception if the request was not successful
@@ -101,7 +96,7 @@ class SessionMock_Auth_Base(ABC):
 
         url = kwargs.get('url', url_args)
         params = kwargs.get(paramsKey, params_args)
-        other_kwargs = {k: v for k,v in kwargs.items()
+        other_kwargs = {k: v for k, v in kwargs.items()
                         if k not in ['url', paramsKey]}
 
         reqParameters = {k: v for k, v in params.items()
@@ -124,7 +119,8 @@ class SessionMock_Auth_Base(ABC):
         return self._internal_process(type, url, params, args, kwargs)
 
     @abstractmethod
-    def _internal_process(self, type, url, params, args, kwargs) -> MockResponse:
+    def _internal_process(self, type, url, params, args, kwargs
+                          ) -> MockResponse:
         '''Function used to actually process a request
 
         Returns:

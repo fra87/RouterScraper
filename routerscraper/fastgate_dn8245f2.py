@@ -8,13 +8,13 @@
 #
 
 import base64
-from typing import Any
 
 from .basescraper import baseScraper
 from .dataTypes import (
         dataService,
         resultState,
         responsePayload,
+        # resultValue,
         loginResult,
         connectedDevice
     )
@@ -121,7 +121,8 @@ class fastgate_dn8245f2(baseScraper):
             return loginResult.ConnectionError
 
         # If login was locked we were not able to login
-        login_confirm = firstReqResult.payload.as_json().get('login_confirm', {})
+        login_confirm = firstReqResult.payload.as_json().get('login_confirm',
+                                                             {})
         if login_confirm.get('login_locked') == '1':
             return loginResult.Locked
 
@@ -150,7 +151,8 @@ class fastgate_dn8245f2(baseScraper):
             return loginResult.ConnectionError
 
         # Check if login was successful
-        login_confirm = secondReqResult.payload.as_json().get('login_confirm', {})
+        login_confirm = secondReqResult.payload.as_json().get('login_confirm',
+                                                              {})
         if login_confirm.get('check_user') != '1':
             return loginResult.WrongUser
         if login_confirm.get('check_pwd') != '1':

@@ -25,7 +25,6 @@ class dataService(Enum):
     TestNotValid = 'test service - not to be implemented in test classes'
 
 
-
 class resultState(Enum):
     '''Enum expressing the state of a request
     '''

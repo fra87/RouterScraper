@@ -7,10 +7,6 @@
 # SPDX-FileCopyrightText: 2022 fra87
 #
 
-from dataclasses import dataclass
-from typing import Any
-import requests
-
 from helpers_common import MockResponse, SessionMock_Auth_Base
 
 from routerscraper.basescraper import baseScraper
@@ -18,6 +14,7 @@ from routerscraper.dataTypes import (
         dataService,
         resultState,
         responsePayload,
+        # resultValue,
         loginResult,
         connectedDevice
     )
@@ -129,7 +126,8 @@ class SessionMock_Auth(SessionMock_Auth_Base):
         self._authenticated = False
         self.positiveResponse = True
 
-    def _internal_process(self, type, url, params, args, kwargs) -> MockResponse:
+    def _internal_process(self, type, url, params, args, kwargs
+                          ) -> MockResponse:
         if type != 'get':
             return MockResponse(status_code=400)
 

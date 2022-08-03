@@ -7,14 +7,11 @@
 # SPDX-FileCopyrightText: 2022 fra87
 #
 
-from dataclasses import dataclass
 import base64
 import typing
 import json
-import requests
-import random
 
-from helpers_common import MockResponse, SessionMock_Auth_Base
+from helpers_common import MockResponse, SessionMock_Auth_Base, randomHexString
 
 
 class SessionMock_Auth(SessionMock_Auth_Base):
@@ -67,7 +64,8 @@ class SessionMock_Auth(SessionMock_Auth_Base):
         self._authenticated = False
         self._initialized = True
 
-    def _internal_process(self, type, url, params, args, kwargs) -> MockResponse:
+    def _internal_process(self, type, url, params, args, kwargs
+                          ) -> MockResponse:
         '''Get the response to the GET request performed
 
         Returns:
@@ -92,7 +90,7 @@ class SessionMock_Auth(SessionMock_Auth_Base):
         cmd = params.get('cmd', '')
 
         if nvget == 'login_confirm' and cmd == '7':
-            self._currentToken = self._randomHexString()
+            self._currentToken = randomHexString(32)
             params['##generated_token'] = self._currentToken
             result = self._step1Response(url, params)
         elif nvget == 'login_confirm' and cmd == '3':
@@ -106,7 +104,8 @@ class SessionMock_Auth(SessionMock_Auth_Base):
                 result = MockResponse(status_code=400)
             else:
                 userCorrect = user and user == self._user
-                passCorrect = userCorrect and passw and passw == self._hashedpass
+                passCorrect = (userCorrect and passw and
+                               passw == self._hashedpass)
 
                 params['##generated_token'] = self._currentToken
                 params['##user_correct'] = userCorrect
@@ -125,17 +124,6 @@ class SessionMock_Auth(SessionMock_Auth_Base):
 
         return result
 
-    @staticmethod
-    def _randomHexString() -> str:
-        '''Generate a random HEX string
-
-        String will be 32 chars (16B) long
-
-        Returns:
-            str: A random string
-        '''
-        return '%032x' % random.randrange(16**32)
-
     @classmethod
     def _generate_login_request(cls, url: str, params: dict) -> MockResponse:
         '''Generate a login request message
@@ -151,7 +139,7 @@ class SessionMock_Auth(SessionMock_Auth_Base):
         json_data = {
                 'login_confirm': {
                         'login_status': '0',
-                        'token': cls._randomHexString(),
+                        'token': randomHexString(32),
                         'login_confirm': 'end'
                     }
             }
@@ -181,8 +169,8 @@ class SessionMock_Auth(SessionMock_Auth_Base):
         Returns:
             MockResponse: The positive response to a step1 request
         '''
-        token = (params.get('##generated_token', cls._randomHexString())
-                 if isinstance(params, dict) else cls._randomHexString())
+        token = (params.get('##generated_token', randomHexString(32))
+                 if isinstance(params, dict) else randomHexString(32))
 
         login_locked = params.get('##login_locked', False)
 
@@ -223,8 +211,8 @@ class SessionMock_Auth(SessionMock_Auth_Base):
         Returns:
             MockResponse: The positive response to a step2 request
         '''
-        token = (params.get('##generated_token', cls._randomHexString())
-                 if isinstance(params, dict) else cls._randomHexString())
+        token = (params.get('##generated_token', randomHexString(32))
+                 if isinstance(params, dict) else randomHexString(32))
         userCorrect = params.get('##user_correct', False)
         passCorrect = params.get('##pass_correct', False)
 

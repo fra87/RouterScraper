@@ -16,9 +16,11 @@ from helpers_common import MockResponse
 from helpers_basescraper import tester_for_requestData, SessionMock_Auth
 from routerscraper.dataTypes import (
         dataService,
-        resultValue,
         resultState,
-        responsePayload
+        responsePayload,
+        resultValue,
+        # loginResult,
+        # connectedDevice
     )
 
 
@@ -51,7 +53,8 @@ class TestBaseScraper(unittest.TestCase):
         self._component.resetSession()
 
         customParams = {'testpar': 'testval'}
-        self._component._requestData(dataService.TestValid, customParams, autologin=False)
+        self._component._requestData(dataService.TestValid, customParams,
+                                     autologin=False)
 
         got = self._component._session.lastRequest
 
@@ -74,7 +77,8 @@ class TestBaseScraper(unittest.TestCase):
         self._component.resetSession()
 
         customParams = {'testpar': 'testval'}
-        self._component._requestData(dataService.TestValid, customParams, autologin=False, postRequest=True)
+        self._component._requestData(dataService.TestValid, customParams,
+                                     autologin=False, postRequest=True)
 
         got = self._component._session.lastRequest
 
@@ -220,7 +224,8 @@ class TestBaseScraper(unittest.TestCase):
         got = self._component._requestData(dataService.TestValid,
                                            forceJSON=True)
         expPayload = responsePayload.buildFromPayload(contentStr)
-        exp = resultValue(resultState.NotJsonResponse, payload=expPayload, error="Not a JSON response")
+        exp = resultValue(resultState.NotJsonResponse, payload=expPayload,
+                          error="Not a JSON response")
 
         self.assertEqual(got, exp)
 

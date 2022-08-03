@@ -7,181 +7,296 @@
 # SPDX-FileCopyrightText: 2022 fra87
 #
 
-from dataclasses import dataclass
-import base64
 import typing
 import json
-import requests
-import random
+from pathlib import Path
+import srp
+from enum import Enum, auto
+
+from helpers_common import MockResponse, SessionMock_Auth_Base, randomHexString
+from routerscraper.technicolor_tg789vacv2 import technicolor_tg789vacv2
 
 
-@dataclass
-class MockResponse:
-    '''Class mocking a request response
+class SessionState(Enum):
+    '''Enumeration with the different session states
     '''
-    content: bytes = b''
-    json_data: dict = None
-    status_code: int = 404
-    encoding: str = 'ISO-8859-1'
-    cookies: str = None
-    # cookies is not a string in the class, but they are for internal use only
-    # anyway, so the type just needs to be consistent
-
-    def json(self) -> dict:
-        '''Return the JSON representation of the item
-
-        Raises:
-            requests.exceptions.JSONDecodeError: No JSON data available
-
-        Returns:
-            dict: The JSON dictionary
-        '''
-        if self.json_data:
-            return self.json_data
-        raise requests.exceptions.JSONDecodeError('', '', 0)
-
-    def raise_for_status(self):
-        '''Raise an exception if the request was not successful
-
-        Raises:
-            requests.exceptions.HTTPError: Server replied with an error
-        '''
-        if self.status_code >= 400:
-            raise requests.exceptions.HTTPError()
+    Created = auto()
+    Initialized = auto()
+    Requested_sM = auto()
+    Authorized = auto()
 
 
-class ForceAuthenticatedReply:
-    '''Class to mimic the authentication steps
+class SessionMock_Auth(SessionMock_Auth_Base):
+    '''Class to mock the Session object to mimic the authentication steps
     '''
 
-    def __init__(self, host: str, user: str, password: str,
-                 successResponse: typing.Callable):
+    def __init__(self):
         '''Initialize the variables
+
+        Note: initialize must be called before the object can actually be used
+        '''
+        super().__init__()
+        self._state = SessionState.Created
+
+    def initialize(self, host: str, user: str, password: str,
+                   successResponse: typing.Callable,
+                   auth1Response: typing.Callable = None,
+                   auth2Response: typing.Callable = None,
+                   mustLoginResponse: typing.Callable = None):
+        '''Initialize the object
+
+        If step1Response or step2Response are provided, they will be called in
+        case one step is required and their output will be sent as request
+        response. If they are None, the reply will be the one that the router
+        would normally send.
+
+        All the callbacks have prototype:
+        f(url: str, params: dict) -> MockResponse
 
         Args:
             user (str): The username to authenticate
             password (str): The password to authenticate
             successResponse (typing.Callable): The function to calculate the
                                                response when authenticated.
-                                               Prototype: func(url: str,
-                                               params: dict)
+            auth1Response (typing.Callable, optional): Function to create the
+                                                       1st response. Defaults
+                                                       to None.
+            auth2Response (typing.Callable, optional): Function to create the
+                                                       2nd response. Defaults
+                                                       to None.
+            mustLoginResponse (typing.Callable, optional): Function to create
+                                                           the login response.
+                                                           Defaults to None.
         '''
         self._host = host
         self._user = user
-        self._hashedpass = base64.b64encode(password.encode('ascii'))
+        self._pass = password
+
         self._successResponse = successResponse
-        self._currentToken = ''
-        self._allowedCookies = []
-        self._executeStep = [True, True]
+        self._auth1Response = (auth1Response if auth1Response
+                               else self._generate_auth_response)
+        self._auth2Response = (auth2Response if auth2Response
+                               else self._generate_auth_response)
+        self._mustLoginResponse = (mustLoginResponse if mustLoginResponse
+                                   else self._generate_login_request)
 
-    def setExecuteStep(self, stepId: int, value: bool):
-        '''Set if the login function execute one of the steps
+        self._token = randomHexString(64)
 
-        By default all steps are executed.
+        self._state = SessionState.Initialized
 
-        Step 0 is when token is generated (cmd = 7)
-        Step 1 is when cookie is generated (cmd = 3)
-
-        Args:
-            stepId (int): The step ID to configure (must be 0 or 1)
-            value (bool): Whether the step shall be executed or not
-        '''
-        if stepId in [0, 1]:
-            self._executeStep[stepId] = value
-
-    @staticmethod
-    def _randomHexString() -> str:
-        ''' Generate a random HEX string
-
-        String will be 32 chars (16B) long
-
-        Returns:
-            str: A random string
-        '''
-        return '%032x' % random.randrange(16**32)
-
-    def get_response(self, *args, **kwargs) -> MockResponse:
+    def _internal_process(self, type, url, params, args, kwargs
+                          ) -> MockResponse:
         '''Get the response to the GET request performed
 
         Returns:
             MockResponse: The response to the GET request
         '''
-        # Arguments extraction
-        url = args[0] if len(args) >= 1 else ''
-        params = args[1] if len(args) >= 2 else {}
+        if self._state == SessionState.Created:
+            raise RuntimeError('SessionMock_Auth item was not initialized')
 
-        url = kwargs.get('url', url)
-        params = kwargs.get('params', params)
-        cookies = kwargs.get('cookies', '')
+        hostname = f'http://{self._host}'
 
-        # The only valid URL is the following one
-        if url != f'http://{self._host}/status.cgi':
+        # The only valid hostname is the calculated one
+        if not url.startswith(hostname):
             return MockResponse(status_code=404)
 
-        # Request was authenticated; return success response
-        if cookies and cookies in self._allowedCookies:
-            self._currentToken = ''
-            return self._successResponse(url, params)
+        # The service is the other part of the URL
+        service = url[len(hostname)+1:]
 
-        nvget = params.get('nvget', '')
-        cmd = params.get('cmd', '')
+        if type == 'get':
+            params['##generated_token'] = self._token
 
-        if self._executeStep[0] and nvget == 'login_confirm' and cmd == '7':
-            # Step 1: generate a new token
-            self._currentToken = self._randomHexString()
-            result = MockResponse(status_code=200)
-            result.json_data = {
-                    'login_confirm': {
-                            'login_locked': '0',
-                            'token': self._currentToken,
-                            'login_confirm': 'end'
-                        }
-                }
-            jsonStr = json.dumps(result.json_data)
-            result.content = jsonStr.encode(result.encoding)
-        elif self._executeStep[1] and nvget == 'login_confirm' and cmd == '3':
-            # Step 2: authenticate
-
-            user = params.get('username', '')
-            passw = params.get('password', '')
-            token = params.get('token', '')
-
-            userCorrect = user and user == self._user
-            passCorrect = userCorrect and passw and passw == self._hashedpass
-
-            if not token or token != self._currentToken:
-                result = MockResponse(status_code=400)
+            # Request was authenticated; return success response
+            if self._state == SessionState.Authorized:
+                return self._successResponse(url, params)
             else:
-                result = MockResponse(status_code=200)
-                result.json_data = {
-                        'login_confirm': {
-                                'check_user': '1' if userCorrect else '0',
-                                'check_pwd': '1' if passCorrect else '0',
-                                'loginfail_times': '0',
-                                'token': self._currentToken,
-                                'login_confirm': 'end'
-                            }
-                    }
-                jsonStr = json.dumps(result.json_data)
-                result.content = jsonStr.encode(result.encoding)
-                if userCorrect and passCorrect:
-                    newCookie = self._randomHexString()
-                    self._allowedCookies.append(newCookie)
-                    result.cookies = newCookie
+                return self._mustLoginResponse(url, params)
 
-                self._currentToken = ''
-        else:
-            # Request a login
-            result = MockResponse(status_code=200)
-            result.json_data = {
-                    'login_confirm': {
-                            'login_status': '0',
-                            'token': self._randomHexString(),
-                            'login_confirm': 'end'
-                        }
-                }
-            jsonStr = json.dumps(result.json_data)
-            result.content = jsonStr.encode(result.encoding)
-            self._currentToken = ''
+        if type == 'post' and service == 'authenticate':
+            if self._state == SessionState.Initialized:
+                # Step 1
+                user = params.get('I', None)
+                A = params.get('A', None)
+                CSRFtoken = params.get('CSRFtoken', None)
 
+                # Check CSRFtoken is present and valid
+                if not CSRFtoken or CSRFtoken != self._token:
+                    return MockResponse(status_code=403)
+
+                # Check I and A params are present
+                if not user or not A:
+                    return MockResponse(status_code=400)
+
+                params['##generated_token'] = self._token
+
+                if user != self._user:
+                    params['##fail_I'] = True
+                else:
+                    cfg = technicolor_tg789vacv2.srp_configuration
+                    salt, vkey = srp.create_salted_verification_key(self._user,
+                                                                    self._pass,
+                                                                    **cfg)
+                    self._svr = srp.Verifier(user, salt, vkey,
+                                             bytes.fromhex(A), **cfg)
+                    s, B = self._svr.get_challenge()
+                    params['##s'] = s.hex()
+                    params['##B'] = B.hex()
+                    self._state = SessionState.Requested_sM
+
+                return self._auth1Response(url, params)
+
+            if self._state == SessionState.Requested_sM:
+                # Reset state (so if something goes wrong authentication shall
+                # start again)
+                self._state = SessionState.Initialized
+
+                # Step 2
+                M = params.get('M', None)
+                CSRFtoken = params.get('CSRFtoken', None)
+
+                # Check CSRFtoken is present and valid
+                if not CSRFtoken or CSRFtoken != self._token:
+                    return MockResponse(status_code=403)
+
+                # Check M param is present
+                if not M:
+                    return MockResponse(status_code=400)
+
+                if not self._svr:
+                    raise RuntimeError('Verifier not present')
+
+                HAMK = self._svr.verify_session(bytes.fromhex(M))
+
+                params['##generated_token'] = self._token
+
+                if not HAMK:
+                    params['##fail_M'] = True
+                else:
+                    params['##M'] = HAMK.hex()
+                    self._state = SessionState.Authorized
+
+                return self._auth2Response(url, params)
+
+        # Not a valid request
+        return MockResponse(status_code=400)
+
+    @classmethod
+    def _fileToMockResponse(cls, filename: str, encoding: str = 'ISO-8859-1',
+                            status_code: int = 200, token: str = None
+                            ) -> MockResponse:
+        '''Create a MockResponse from a file
+
+        When None is passed as token, a new random 64B hex string is generated
+
+        Args:
+            filename (str): Filename of the page
+            encoding (str, optional): Encoding of the file. Defaults to
+                                      'ISO-8859-1'.
+            status_code (int, optional): The status code to return. Defaults to
+                                         200.
+            token (str, optional): The token to embed. Defaults to None.
+
+        Raises:
+            ValueError: When the file does not exist
+
+        Returns:
+            MockResponse: The MockResponse
+        '''
+        ScriptFolder = Path(__file__).parent.absolute()
+        FilesFolder = ScriptFolder / 'files_technicolor_tg789vacv2'
+        pageFile = FilesFolder / filename
+
+        if not pageFile.exists():
+            raise ValueError(f'{pageFile} does not exist')
+
+        content = b''
+
+        # Read the content of the file
+        with pageFile.open('rb') as f:
+            content = f.read()
+
+        if token is None:
+            token = randomHexString(64)
+
+        content = content.replace(b'##CSRFTOKEN##', token.encode())
+
+        return MockResponse(status_code=status_code, content=content,
+                            encoding=encoding)
+
+    @classmethod
+    def _generate_login_request(cls, url: str, params: dict) -> MockResponse:
+        '''Generate a login request message
+
+        params['##generated_token'] shall contain the generated token,
+        otherwise a random one will be generated
+
+        Args:
+            url (str): The url for the request
+            params (dict): The parameters for the request
+
+        Returns:
+            MockResponse: The login request
+        '''
+        token = (params.get('##generated_token')
+                 if isinstance(params, dict) else None)
+
+        return cls._fileToMockResponse('mustLogin_ISO-8859-1.html',
+                                       encoding='ISO-8859-1',
+                                       status_code=200,
+                                       token=token)
+
+    @classmethod
+    def _generate_auth_response(cls, url: str, params: dict) -> MockResponse:
+        '''Generate a response for an authentication
+
+        The reply will be the one that the router would normally send to a
+        step1 request
+
+        params['##s'] shall contain the param s of the response, otherwise no
+        s param will be sent
+
+        params['##B'] shall contain the param B of the response, otherwise no
+        B param will be sent
+
+        params['##M'] shall contain the param M of the response, otherwise no
+        M param will be sent
+
+        To send an error message failure the params['##error'] can be used. The
+        message passed as params['##error'] is sent in the result object.
+
+        If params['##fail_I'] is set and Truthy, the default error message for
+        I mismatch will be set if ##error and ##fail_M are not set.
+
+        If params['##fail_M'] is set and Truthy, the default error message for
+        M mismatch will be set if ##error is not set.
+
+        Usually step1 responses have s and B, while step2 responses have M
+
+        Args:
+            url (str): The url for the request
+            params (dict): The parameters for the request
+
+        Returns:
+            MockResponse: The positive response to a step1 request
+        '''
+        s = params.get('##s', None)
+        B = params.get('##B', None)
+        M = params.get('##M', None)
+        error = 'failed' if params.get('##fail_I', False) else None
+        error = 'M didn\'t match' if params.get('##fail_M', False) else error
+        error = params.get('##error', error)
+
+        result = MockResponse(status_code=200, encoding='utf-8')
+        json_data = {}
+
+        if s:
+            json_data['s'] = s
+        if B:
+            json_data['B'] = B
+        if M:
+            json_data['M'] = M
+        if error:
+            json_data['error'] = error
+
+        result.content = json.dumps(json_data).encode(result.encoding)
         return result

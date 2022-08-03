@@ -7,22 +7,18 @@
 # SPDX-FileCopyrightText: 2022 fra87
 #
 
-import base64
 import srp
-from typing import Any
-import requests
-from bs4 import BeautifulSoup
-import re
 
 from .basescraper import baseScraper
 from .dataTypes import (
         dataService,
-        resultValue,
-        responsePayload,
         resultState,
+        responsePayload,
+        resultValue,
         loginResult,
         connectedDevice
     )
+
 
 class technicolor_tg789vacv2(baseScraper):
     '''Class for scraping data from Technicolor TG789vac v2
@@ -36,7 +32,12 @@ class technicolor_tg789vacv2(baseScraper):
     }
 
     # Fixed value for k parameter in authentication
-    k_val = '05b9e8ef059c6b32ea59fc1d322d37f04aa30bae5aa9003b8321e21ddb04e300'
+    srp_configuration = {
+            'hash_alg': srp.SHA256,
+            'ng_type': srp.NG_2048,
+            'k_hex': (b'05b9e8ef059c6b32ea59fc1d322d37f0'
+                      b'4aa30bae5aa9003b8321e21ddb04e300')
+        }
 
     def _requestData(self, service: dataService, params: dict[str, str] = None,
                      autologin: bool = True, forceJSON: bool = False,
@@ -63,12 +64,15 @@ class technicolor_tg789vacv2(baseScraper):
         Returns:
             resultValue: The result of the request
         '''
-        result = super()._requestData(service, params, autologin, forceJSON,
-                                      postRequest)
+        result = super()._requestData(service=service, params=params,
+                                      autologin=autologin, forceJSON=forceJSON,
+                                      postRequest=postRequest)
+
         try:
-            if result.payload.as_html():
-                self._CSRFtoken = result.payload.as_html().find(attrs=
-                                        {'name': 'CSRFtoken'})['content']
+            html = result.payload.as_html()
+            if html:
+                tokenTag = html.find(attrs={'name': 'CSRFtoken'})
+                self._CSRFtoken = tokenTag['content']
         except TypeError:
             # Ignoring TypeError: 'NoneType' object is not subscriptable
             pass
@@ -164,16 +168,14 @@ class technicolor_tg789vacv2(baseScraper):
             return loginResult.NoToken
 
         # Generate initial authentication parameters (I, A)
-        usr = srp.User(self._user, self._password,
-                       hash_alg=srp.SHA256,
-                       ng_type=srp.NG_2048,
-                       k_hex=self.k_val.encode('ascii'))
+        usr = srp.User(self._user, self._password, **self.srp_configuration)
         I, A = usr.start_authentication()
 
         # Send initial parameters
         secondParams = {'CSRFtoken': self._CSRFtoken, 'I': I, 'A': A.hex()}
-        secondRequest = self._requestData(dataService.Login, params=secondParams,
-                                          autologin=False, forceJSON=True, postRequest=True)
+        secondRequest = self._requestData(dataService.Login,
+                                          params=secondParams, autologin=False,
+                                          forceJSON=True, postRequest=True)
 
         if secondRequest.state != resultState.Completed:
             return loginResult.ConnectionError
@@ -188,7 +190,7 @@ class technicolor_tg789vacv2(baseScraper):
             return loginResult.WrongData
 
         # Calculate response to challenge
-        M = usr.process_challenge( bytes.fromhex(s), bytes.fromhex(B) )
+        M = usr.process_challenge(bytes.fromhex(s), bytes.fromhex(B))
 
         if M is None:
             return loginResult.WrongData
@@ -196,7 +198,8 @@ class technicolor_tg789vacv2(baseScraper):
         # Send response
         thirdParams = {'CSRFtoken': self._CSRFtoken, 'M': M.hex()}
         thirdRequest = self._requestData(dataService.Login, params=thirdParams,
-                                         autologin=False, forceJSON=True, postRequest=True)
+                                         autologin=False, forceJSON=True,
+                                         postRequest=True)
 
         if thirdRequest.state != resultState.Completed:
             return loginResult.ConnectionError
@@ -205,8 +208,11 @@ class technicolor_tg789vacv2(baseScraper):
         HAMK = thirdRequest.payload.as_json().get('M', None)
         error = thirdRequest.payload.as_json().get('error', None)
 
-        if HAMK is None or error is not None:
+        if error == "M didn't match":
             return loginResult.WrongPass
+
+        if HAMK is None or error is not None:
+            return loginResult.WrongData
 
         usr.verify_session(bytes.fromhex(HAMK))
 
@@ -218,6 +224,8 @@ class technicolor_tg789vacv2(baseScraper):
     def listDevices(self) -> list[connectedDevice]:
         '''Get the list of connected devices
 
+        If there was a connection error the function returns None
+
         Returns:
             list[connectedDevice]: The list of connected devices
         '''
@@ -225,10 +233,12 @@ class technicolor_tg789vacv2(baseScraper):
 
         # If the request was not successful return empty list
         if res.state != resultState.Completed:
-            print(res)
-            return []
+            return None
 
-        devicesTable = res.payload.as_html().find('table', id='devices')
+        if res.payload.as_html():
+            devicesTable = res.payload.as_html().find('table', id='devices')
+        else:
+            devicesTable = None
 
         result = []
 
@@ -236,7 +246,8 @@ class technicolor_tg789vacv2(baseScraper):
             for row in devicesTable.tbody.findAll('tr'):
                 rowTokens = row.findAll('td')
 
-                Status = ', '.join(cl for cl in rowTokens[0].div['class'] if cl != 'light')
+                Status = ', '.join(cl for cl in rowTokens[0].div['class']
+                                   if cl != 'light')
                 Hostname = rowTokens[1].text
                 IP = rowTokens[2].text
                 MAC = rowTokens[3].text
@@ -246,13 +257,15 @@ class technicolor_tg789vacv2(baseScraper):
                 if IP:
                     # Device is connected if it has an IP
                     result.append(connectedDevice(
-                        Name=Hostname,
-                        MAC=MAC,
-                        IP=IP,
-                        additionalInfo={
-                            'Status': Status,
-                            'Type': Type,
-                            'Port': Port
-                        }))
+                                Name=Hostname,
+                                MAC=MAC,
+                                IP=IP,
+                                additionalInfo={
+                                        'Status': Status,
+                                        'Type': Type,
+                                        'Port': Port
+                                    }
+                            )
+                        )
 
         return result

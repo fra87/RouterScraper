@@ -10,7 +10,6 @@
 import unittest
 from unittest import mock
 import base64
-import random
 import json
 import requests
 
@@ -19,8 +18,9 @@ from helpers_fastgate_dn8245f2 import SessionMock_Auth
 from routerscraper.fastgate_dn8245f2 import fastgate_dn8245f2
 from routerscraper.dataTypes import (
         dataService,
-        resultValue,
         resultState,
+        # responsePayload,
+        resultValue,
         loginResult,
         connectedDevice
     )
@@ -320,7 +320,7 @@ class TestFastgate_dn8245f2(unittest.TestCase):
 
         # extracting token
         if len(gotFuncCalls) >= 2:
-            token = gotFuncCalls[1].get('reqParameters',{}).get('token')
+            token = gotFuncCalls[1].get('reqParameters', {}).get('token')
         else:
             token = None
 
@@ -350,7 +350,7 @@ class TestFastgate_dn8245f2(unittest.TestCase):
 
         # extracting token
         if len(gotFuncCalls) >= 2:
-            token = gotFuncCalls[1].get('reqParameters',{}).get('token')
+            token = gotFuncCalls[1].get('reqParameters', {}).get('token')
         else:
             token = None
 
@@ -376,7 +376,7 @@ class TestFastgate_dn8245f2(unittest.TestCase):
 
         # extracting token
         if len(gotFuncCalls) >= 2:
-            token = gotFuncCalls[1].get('reqParameters',{}).get('token')
+            token = gotFuncCalls[1].get('reqParameters', {}).get('token')
         else:
             token = None
 
@@ -402,7 +402,7 @@ class TestFastgate_dn8245f2(unittest.TestCase):
 
         # extracting token
         if len(gotFuncCalls) >= 2:
-            token = gotFuncCalls[1].get('reqParameters',{}).get('token')
+            token = gotFuncCalls[1].get('reqParameters', {}).get('token')
         else:
             token = None
 
@@ -430,7 +430,7 @@ class TestFastgate_dn8245f2(unittest.TestCase):
 
         # extracting token
         if len(gotFuncCalls) >= 2:
-            token = gotFuncCalls[1].get('reqParameters',{}).get('token')
+            token = gotFuncCalls[1].get('reqParameters', {}).get('token')
         else:
             token = None
 

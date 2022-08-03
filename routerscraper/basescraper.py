@@ -8,14 +8,13 @@
 #
 
 from abc import ABC, abstractmethod
-from typing import Any
 import requests
 
 from .dataTypes import (
         dataService,
-        resultValue,
-        responsePayload,
         resultState,
+        responsePayload,
+        resultValue,
         loginResult,
         connectedDevice
     )
@@ -63,8 +62,8 @@ class baseScraper(ABC):
         self._session = requests.Session()
 
     def _requestData(self, service: dataService, params: dict[str, str] = None,
-                     autologin: bool = True, forceJSON: bool = False, postRequest: bool = False
-                     ) -> resultValue:
+                     autologin: bool = True, forceJSON: bool = False,
+                     postRequest: bool = False) -> resultValue:
         '''Request data from the router
 
         params will be passed in the "params" property for GET requests and in
