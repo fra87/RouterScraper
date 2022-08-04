@@ -12,14 +12,15 @@ from unittest import mock
 import json
 import requests
 
-from helpers_basescraper import (
-        MockResponse,
-        tester_for_requestData,
-        ForceAuthenticatedReply
-    )
+from helpers_common import MockResponse, RecordedRequest
+from helpers_basescraper import tester_for_requestData, SessionMock_Auth
 from routerscraper.dataTypes import (
+        dataService,
+        resultState,
+        responsePayload,
         resultValue,
-        resultState
+        # loginResult,
+        # connectedDevice
     )
 
 
@@ -43,13 +44,53 @@ class TestBaseScraper(unittest.TestCase):
     # Check _requestData               #
     ####################################
 
+    @mock.patch('routerscraper.basescraper.requests.Session')
+    def test_requestData_get_params(self, mock_Session):
+        '''Test parameters passing for GET
+        '''
+        mock_Session.return_value = SessionMock_Auth()
+        # reset so Session object can be rebuilt with mock class
+        self._component.resetSession()
+
+        customParams = {'testpar': 'testval'}
+        self._component._requestData(dataService.TestValid, customParams,
+                                     autologin=False)
+
+        got = self._component._session.lastRequest
+
+        exp = RecordedRequest(type='get', url='testing_library_service',
+                              reqParameters={'testpar': 'testval'},
+                              other_args=[], other_kwargs={})
+
+        self.assertEqual(got, exp)
+
+    @mock.patch('routerscraper.basescraper.requests.Session')
+    def test_requestData_post_params(self, mock_Session):
+        '''Test parameters passing for POST
+        '''
+        mock_Session.return_value = SessionMock_Auth()
+        # reset so Session object can be rebuilt with mock class
+        self._component.resetSession()
+
+        customParams = {'testpar': 'testval'}
+        self._component._requestData(dataService.TestValid, customParams,
+                                     autologin=False, postRequest=True)
+
+        got = self._component._session.lastRequest
+
+        exp = RecordedRequest(type='post', url='testing_library_service',
+                              reqParameters={'testpar': 'testval'},
+                              other_args=[], other_kwargs={})
+
+        self.assertEqual(got, exp)
+
     def test_requestData_wrong_service(self):
         '''Test a wrong service
         '''
         with self.assertRaises(ValueError):
-            self._component._requestData('invalid_service')
+            self._component._requestData(dataService.TestNotValid)
 
-    @mock.patch('routerscraper.basescraper.requests.get')
+    @mock.patch.object(requests.Session, 'get')
     def test_requestData_ConnectionError(self, mock_get):
         '''Test a ConnectionError issue
         '''
@@ -57,73 +98,80 @@ class TestBaseScraper(unittest.TestCase):
             raise requests.exceptions.ConnectionError()
         mock_get.side_effect = raise_ConnectionError
 
-        got = self._component._requestData('testing_library_service').state
+        got = self._component._requestData(dataService.TestValid).state
         exp = resultState.ConnectionError
 
         self.assertEqual(got, exp)
 
-    @mock.patch('routerscraper.basescraper.requests.get')
+    @mock.patch.object(requests.Session, 'get')
     def test_requestData_http_client_error(self, mock_get):
         '''Test a HTTP client error reply
         '''
         mock_get.return_value = MockResponse(status_code=400)
 
-        got = self._component._requestData('testing_library_service').state
+        got = self._component._requestData(dataService.TestValid).state
         exp = resultState.ConnectionError
 
         self.assertEqual(got, exp)
 
-    @mock.patch('routerscraper.basescraper.requests.get')
+    @mock.patch.object(requests.Session, 'get')
     def test_requestData_http_server_error(self, mock_get):
         '''Test a HTTP server error reply
         '''
         mock_get.return_value = MockResponse(status_code=500)
 
-        got = self._component._requestData('testing_library_service').state
+        got = self._component._requestData(dataService.TestValid).state
         exp = resultState.ConnectionError
 
         self.assertEqual(got, exp)
 
-    @mock.patch('routerscraper.basescraper.requests.get')
-    def test_requestData_need_login(self, mock_get):
+    @mock.patch('routerscraper.basescraper.requests.Session')
+    def test_requestData_need_login(self, mock_Session):
         '''Test a reply where the server needs login for the service
         '''
-        helper = ForceAuthenticatedReply(True)
-        mock_get.side_effect = helper.get_response
+        mock_Session.return_value = SessionMock_Auth()
+        # reset so Session object can be rebuilt with mock class
+        self._component.resetSession()
 
-        got = self._component._requestData('testing_library_service',
+        got = self._component._requestData(dataService.TestValid,
                                            autologin=False).state
         exp = resultState.MustLogin
 
         self.assertEqual(got, exp)
+        self.assertEqual(self._component.isLoggedIn, False)
 
-    @mock.patch('routerscraper.basescraper.requests.get')
-    def test_requestData_autologin(self, mock_get):
+    @mock.patch('routerscraper.basescraper.requests.Session')
+    def test_requestData_autologin(self, mock_Session):
         '''Test a reply where the server needs login and library performs it
         '''
-        helper = ForceAuthenticatedReply(True)
-        mock_get.side_effect = helper.get_response
+        mock_Session.return_value = SessionMock_Auth()
+        # reset so Session object can be rebuilt with mock class
+        self._component.resetSession()
 
-        got = self._component._requestData('testing_library_service',
+        got = self._component._requestData(dataService.TestValid,
                                            autologin=True)
-        exp = resultValue(resultState.Completed, 'success')
+        exp = resultValue(resultState.Completed, payload='success')
 
         self.assertEqual(got, exp)
+        self.assertEqual(self._component.isLoggedIn, True)
 
-    @mock.patch('routerscraper.basescraper.requests.get')
-    def test_requestData_autologin_fail(self, mock_get):
+    @mock.patch('routerscraper.basescraper.requests.Session')
+    def test_requestData_autologin_fail(self, mock_Session):
         '''Test a reply where the server needs login and login failed
         '''
-        helper = ForceAuthenticatedReply(False)
-        mock_get.side_effect = helper.get_response
+        mock_Session.return_value = SessionMock_Auth()
+        # reset so Session object can be rebuilt with mock class
+        self._component.resetSession()
+        self._component._session.positiveResponse = False
 
-        got = self._component._requestData('testing_library_service',
+        got = self._component._requestData(dataService.TestValid,
                                            autologin=True).state
         exp = resultState.MustLogin
 
         self.assertEqual(got, exp)
+        self.assertEqual(self._component.isLoggedIn, False)
 
-    @mock.patch('routerscraper.basescraper.requests.get')
+    @mock.patch.object(requests.Session, 'get')
     def test_requestData_success_no_json(self, mock_get):
         '''Test a positive response without JSON
         '''
@@ -132,12 +180,14 @@ class TestBaseScraper(unittest.TestCase):
         positiveResponse.content = contentStr.encode(positiveResponse.encoding)
         mock_get.return_value = positiveResponse
 
-        got = self._component._requestData('testing_library_service')
-        exp = resultValue(resultState.Completed, contentStr)
+        got = self._component._requestData(dataService.TestValid)
+
+        expPayload = responsePayload.buildFromPayload(contentStr)
+        exp = resultValue(resultState.Completed, payload=expPayload)
 
         self.assertEqual(got, exp)
 
-    @mock.patch('routerscraper.basescraper.requests.get')
+    @mock.patch.object(requests.Session, 'get')
     def test_requestData_success_json(self, mock_get):
         '''Test a positive response with JSON
         '''
@@ -148,12 +198,13 @@ class TestBaseScraper(unittest.TestCase):
         positiveResponse.content = contentStr.encode(positiveResponse.encoding)
         mock_get.return_value = positiveResponse
 
-        got = self._component._requestData('testing_library_service')
-        exp = resultValue(resultState.Completed, contentStr, json_data)
+        got = self._component._requestData(dataService.TestValid)
+        expPayload = responsePayload.buildFromPayload(contentStr)
+        exp = resultValue(resultState.Completed, payload=expPayload)
 
         self.assertEqual(got, exp)
 
-    @mock.patch('routerscraper.basescraper.requests.get')
+    @mock.patch.object(requests.Session, 'get')
     def test_requestData_forced_no_json(self, mock_get):
         '''Test a positive response without JSON when JSON is mandatory
         '''
@@ -162,13 +213,15 @@ class TestBaseScraper(unittest.TestCase):
         positiveResponse.content = contentStr.encode(positiveResponse.encoding)
         mock_get.return_value = positiveResponse
 
-        got = self._component._requestData('testing_library_service',
+        got = self._component._requestData(dataService.TestValid,
                                            forceJSON=True)
-        exp = resultValue(resultState.NotJsonResponse, contentStr)
+        expPayload = responsePayload.buildFromPayload(contentStr)
+        exp = resultValue(resultState.NotJsonResponse, payload=expPayload,
+                          error="Not a JSON response")
 
         self.assertEqual(got, exp)
 
-    @mock.patch('routerscraper.basescraper.requests.get')
+    @mock.patch.object(requests.Session, 'get')
     def test_requestData_forced_success(self, mock_get):
         '''Test a positive response without JSON when JSON is mandatory
         '''
@@ -179,8 +232,9 @@ class TestBaseScraper(unittest.TestCase):
         positiveResponse.content = contentStr.encode(positiveResponse.encoding)
         mock_get.return_value = positiveResponse
 
-        got = self._component._requestData('testing_library_service',
+        got = self._component._requestData(dataService.TestValid,
                                            forceJSON=True)
-        exp = resultValue(resultState.Completed, contentStr, json_data)
+        expPayload = responsePayload.buildFromPayload(contentStr)
+        exp = resultValue(resultState.Completed, payload=expPayload)
 
         self.assertEqual(got, exp)

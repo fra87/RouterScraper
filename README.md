@@ -22,10 +22,15 @@ routers.
     - `dataTypes.py`: Module to group data types used in the functions
     - `fastgate_dn8245f2.py`: Contains the implementation for the Fastgate
                               Huawei DN8245f2
+    - `technicolor_tg789vacv2.py`: Contains the implementation for the
+                                   Technicolor TG789vac v2
 - **tests**: folder with the unit tests. Each test file in this folder
              implements tests linked to the corresponding file in the
              **routerscraper** folder; if necessary, helper files group
-             functions needed by the corresponding test file. 
+             functions needed by the corresponding test file. **files_\***
+             folder contains files needed by the test files.
+             `helpers_common.py` implements some classes useful for all the
+             tests.
 - **developerscripts**: folder with scripts for developers
     - `create_venv.sh`: Script to create the virtual environment and install
                         dependencies
@@ -36,6 +41,8 @@ routers.
 - **examples**: folder with example code
     - `fastgate_dn8245f2.py`: Contains an example implementation for the
                               Fastgate Huawei DN8245f2
+    - `technicolor_tg789vacv2.py`: Contains an example implementation for the
+                                   Technicolor TG789vac v2
 - **LICENSES**: folder with the licenses statements
 
 # Supported routers
@@ -43,6 +50,18 @@ routers.
 At present the module was tested with the following routers firmwares
 
 - Fastgate Huawei DN8245f2 - software 1.0.1b
+- Technicolor TG789vac v2 - software 16.3.7636
+
+# Examples
+
+All example scripts behave in the same way. They will connect to the router and
+print the list of connected devices.
+
+Call the script with three parameters:
+
+1. URL of the router
+2. USERNAME
+3. PASSWORD
 
 # Setup the repository
 

@@ -8,11 +8,13 @@
 #
 
 import base64
-from typing import Any
 
 from .basescraper import baseScraper
 from .dataTypes import (
+        dataService,
         resultState,
+        responsePayload,
+        # resultValue,
         loginResult,
         connectedDevice
     )
@@ -22,69 +24,91 @@ class fastgate_dn8245f2(baseScraper):
     '''Class for scraping data from Fastgate Huawei DN8245f2
     '''
 
-    # List of valid services
-    _validServices = [
-        'connected_device_list',
-        'login_confirm'
-    ]
+    # List of services additionalParams
+    _dataServicesParams = {
+        dataService.Login: {'nvget': 'login_confirm'},
+        dataService.ConnectedDevices: {'nvget': 'connected_device_list'},
+    }
 
-    def _requestData_url(self, service: str, params: dict[str, str]) -> str:
-        '''Build the URL from the requestData parameters
+    def _requestData_validService(self, service: dataService) -> bool:
+        '''Check if the service is a valid service for the router
 
         Args:
-            service (str): The service being requested
-            params (dict[str, str]): The additional GET params being requested
+            service (dataService): The service to verify
+
+        Returns:
+            bool: True if the service is valid
+        '''
+        return service in self._dataServicesParams
+
+    def _requestData_url(self, service: dataService, params: dict[str, str]
+                         ) -> str:
+        '''Build the URL from the requestData parameters
+
+        If the URL cannot be built, None is returned
+
+        Args:
+            service (dataService): The service being requested
+            params (dict[str, str]): The additional params being requested
 
         Returns:
             str: The URL for the request
         '''
         return f'http://{self._host}/status.cgi'
 
-    def _requestData_params(self, service: str, params: dict[str, str]
+    def _requestData_params(self, service: dataService, params: dict[str, str]
                             ) -> dict[str, str]:
-        '''Build the GET params from the requestData parameters
+        '''Build the params from the requestData parameters
 
         Args:
-            service (str): The service being requested
-            params (dict[str, str]): The additional GET params being requested
+            service (dataService): The service being requested
+            params (dict[str, str]): The additional params being requested
 
         Returns:
-            dict[str, str]: The GET params
+            dict[str, str]: The params
         '''
+        result = params if isinstance(params, dict) else {}
 
-        if isinstance(params, dict):
-            result = params
-        else:
-            result = {}
-
-        result['nvget'] = service
+        if service in self._dataServicesParams:
+            result.update(self._dataServicesParams[service])
 
         return result
 
     @staticmethod
-    def isLoginRequest(payload: str, jsonItm: dict, cookies: Any) -> bool:
+    def isLoginRequest(payload: responsePayload) -> bool:
         '''Check if the extracted data corresponds to a login request
 
         Args:
-            payload (str): The raw payload of the response
-            jsonItm (dict): The JSON representation of the response
-            cookies (Any): The cookies in the response
+            result (responsePayload): The payload object to be checked
 
         Returns:
             bool: True if the data corresponds to a login request
         '''
-        return jsonItm.get('login_confirm', {}).get('login_status') == '0'
+        result = False
+        if payload.as_json():
+            login_confirm = payload.as_json().get('login_confirm', {})
+            result = login_confirm.get('login_status') == '0'
+        return result
 
-    def login(self) -> loginResult:
+    def _internal_login(self, cleanStart: bool = False) -> loginResult:
         '''Perform a login action
+
+        Note: this function must not be used directly, but only through the
+        wrapping login(cleanStart) function.
+
+        Args:
+            cleanStart (bool, optional): Remove cookies and start from scratch.
+                                         Defaults to False.
 
         Returns:
             loginResult: The login outcome
         '''
+        if cleanStart:
+            self.resetSession()
 
         # First step: perform a cmd = 7 request to obtain the token
         firstReqResult = self._requestData(
-                'login_confirm',
+                dataService.Login,
                 {
                     'cmd': '7'
                 },
@@ -97,7 +121,8 @@ class fastgate_dn8245f2(baseScraper):
             return loginResult.ConnectionError
 
         # If login was locked we were not able to login
-        login_confirm = firstReqResult.payloadJSON.get('login_confirm', {})
+        login_confirm = firstReqResult.payload.as_json().get('login_confirm',
+                                                             {})
         if login_confirm.get('login_locked') == '1':
             return loginResult.Locked
 
@@ -110,7 +135,7 @@ class fastgate_dn8245f2(baseScraper):
         # Second step: perform a cmd = 3 request with user and pass
         encoded_pass = base64.b64encode(self._password.encode('ascii'))
         secondReqResult = self._requestData(
-                'login_confirm',
+                dataService.Login,
                 {
                     'cmd': '3',
                     'username': self._user,
@@ -126,30 +151,31 @@ class fastgate_dn8245f2(baseScraper):
             return loginResult.ConnectionError
 
         # Check if login was successful
-        login_confirm = secondReqResult.payloadJSON.get('login_confirm', {})
+        login_confirm = secondReqResult.payload.as_json().get('login_confirm',
+                                                              {})
         if login_confirm.get('check_user') != '1':
             return loginResult.WrongUser
         if login_confirm.get('check_pwd') != '1':
             return loginResult.WrongPass
-
-        self._session = secondReqResult.cookies
 
         return loginResult.Success
 
     def listDevices(self) -> list[connectedDevice]:
         '''Get the list of connected devices
 
+        If there was a connection error the function returns None
+
         Returns:
             list[connectedDevice]: The list of connected devices
         '''
         # Get the list from the router
-        res = self._requestData('connected_device_list', forceJSON=True)
+        res = self._requestData(dataService.ConnectedDevices, forceJSON=True)
 
         # If the request was not successful return empty list
         if res.state != resultState.Completed:
-            return []
+            return None
 
-        connLst = res.payloadJSON.get('connected_device_list', {})
+        connLst = res.payload.as_json().get('connected_device_list', {})
 
         result = []
         # Extract the items

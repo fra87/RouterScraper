@@ -39,6 +39,6 @@ PYTHON_BIN="${VIRTUALENV_PATH}"/bin/python
 ${PYTHON_BIN} -m pip install --upgrade pip setuptools wheel
 
 # Install requirements
-${PYTHON_BIN} -m pip install --upgrade flake8 reuse
+${PYTHON_BIN} -m pip install --upgrade flake8 reuse srp beautifulsoup4
 
 echo "Virtual Environment ready at ${VIRTUALENV_PATH}"

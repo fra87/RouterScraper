@@ -10,14 +10,17 @@
 import unittest
 from unittest import mock
 import base64
-import random
 import json
+import requests
 
+from helpers_common import MockResponse, RecordedRequest
+from helpers_fastgate_dn8245f2 import SessionMock_Auth
 from routerscraper.fastgate_dn8245f2 import fastgate_dn8245f2
-from helpers_fastgate_dn8245f2 import MockResponse, ForceAuthenticatedReply
 from routerscraper.dataTypes import (
-        resultValue,
+        dataService,
         resultState,
+        # responsePayload,
+        resultValue,
         loginResult,
         connectedDevice
     )
@@ -38,43 +41,6 @@ class TestFastgate_dn8245f2(unittest.TestCase):
         self._pass = 'correctPass'
         self._hashedpass = base64.b64encode(self._pass.encode('ascii'))
         self._component = fastgate_dn8245f2(self._host, self._user, self._pass)
-
-    @staticmethod
-    def create_random_token() -> str:
-        '''Create a random token string
-
-        Returns:
-            str: The random token string
-        '''
-        return '%032x' % random.randrange(16**32)
-
-    @staticmethod
-    def login_cmd7_reply(login_locked: bool = False, token: str = 0) -> dict:
-        '''Create the CMD7 JSON reply
-
-        If token is 0 a random one will be generated; if it is None no token
-        will be passed.
-
-        Args:
-            login_locked (bool, optional): Create the login_locked version.
-                                           Defaults to False.
-            token (str, optional): The token to embed. Defaults to 0.
-
-        Returns:
-            dict: The reply to the CMD7 request
-        '''
-        result = {
-            'login_confirm': {
-                'login_locked': '1' if login_locked else '0',
-                'login_confirm': 'end'
-                }
-            }
-        if token == 0:
-            token = TestFastgate_dn8245f2.create_random_token()
-        if token is not None:
-            result['login_confirm']['token'] = token
-
-        return result
 
     @staticmethod
     def connectedDevice_to_dict(connDev: connectedDevice, idx: int,
@@ -112,75 +78,135 @@ class TestFastgate_dn8245f2(unittest.TestCase):
 
         return result
 
+    def prepareMockSession(self, mock_Session, **kwargs):
+        '''Prepare a mock session
+
+        kwargs can contain the following parameters:
+        - host: the hostname (defaults to self._host)
+        - user: the username (defaults to self._user)
+        - password: the password (defaults to self._pass)
+        - mockSuccessResponse: response to be returned as success response
+                               (overriden by explicit successResponse)
+        - successResponse: function to call at success (defaults to None)
+        - mock1Response: response to be returned as step1 response (overrides
+                         default step1Response, overriden by explicit
+                         step1Response)
+        - step1Response: function to calculate the step1 response (defaults to
+                         the normal server behavior)
+        - mock2Response: response to be returned as step2 response (overrides
+                         default step2Response, overriden by explicit
+                         step2Response)
+        - step2Response: function to calculate the step2 response (defaults to
+                         the normal server behavior)
+        '''
+        mock_Session.return_value = SessionMock_Auth()
+        # reset so Session object can be rebuilt with mock class
+        self._component.resetSession()
+
+        successResponse = None
+        step1Response = None
+        step2Response = None
+
+        if 'mockSuccessResponse' in kwargs:
+            def mockSuccessResponseFun(url: str, params: dict):
+                return kwargs.get('mockSuccessResponse')
+            successResponse = mockSuccessResponseFun
+        if 'mock1Response' in kwargs:
+            def mock1ResponseFun(url: str, params: dict, **_):
+                return kwargs.get('mock1Response')
+            step1Response = mock1ResponseFun
+        if 'mock2Response' in kwargs:
+            def mock2ResponseFun(url: str, params: dict, **_):
+                return kwargs.get('mock2Response')
+            step2Response = mock2ResponseFun
+
+        host = kwargs.get('host', self._host)
+        user = kwargs.get('user', self._user)
+        password = kwargs.get('password', self._pass)
+        successResponse = kwargs.get('successResponse', successResponse)
+        step1Response = kwargs.get('step1Response', step1Response)
+        step2Response = kwargs.get('step2Response', step2Response)
+
+        self._component._session.initialize(host=host,
+                                            user=user,
+                                            password=password,
+                                            successResponse=successResponse,
+                                            step1Response=step1Response,
+                                            step2Response=step2Response)
+
+    def login_cmd7_expFuncCall(self) -> dict:
+        '''Return the expected function arguments in a call for CMD7 service
+
+        Returns:
+            dict: The dictionary with the arguments
+        '''
+        type = 'get'
+        url = 'http://correctHost/status.cgi'
+        reqParameters = {'cmd': '7', 'nvget': 'login_confirm'}
+
+        return RecordedRequest(type=type, url=url, reqParameters=reqParameters,
+                               other_args=[], other_kwargs={})
+
+    def login_cmd3_expFuncCall(self, token) -> dict:
+        '''Return the expected function arguments in a call for CMD3 service
+
+        Args:
+            token: The token to embed in the dictionary
+
+        Returns:
+            dict: The dictionary with the arguments
+        '''
+        type = 'get'
+        url = 'http://correctHost/status.cgi'
+        reqParameters = {'cmd': '3', 'nvget': 'login_confirm',
+                         'username': self._user, 'password': self._hashedpass,
+                         'token': token}
+
+        return RecordedRequest(type=type, url=url, reqParameters=reqParameters,
+                               other_args=[], other_kwargs={})
+
     ####################################
     # Check _requestData login         #
     ####################################
 
-    @mock.patch('routerscraper.basescraper.requests.get')
-    def test_requestData_need_login(self, mock_get):
+    @mock.patch('routerscraper.basescraper.requests.Session')
+    def test_requestData_need_login(self, mock_Session):
         '''Test a reply where the server needs login for the service
         '''
-        def successResponse(url: str, params: dict):
-            return MockResponse(status_code=200, content=b'Dummy')
-        helper = ForceAuthenticatedReply(self._host, self._user, self._pass,
-                                         successResponse)
-        mock_get.side_effect = helper.get_response
+        self.prepareMockSession(mock_Session)
 
-        got = self._component._requestData('connected_device_list',
+        got = self._component._requestData(dataService.ConnectedDevices,
                                            autologin=False).state
         exp = resultState.MustLogin
 
         self.assertEqual(got, exp)
 
-    @mock.patch('routerscraper.basescraper.requests.get')
-    def test_requestData_autologin(self, mock_get):
+    @mock.patch('routerscraper.basescraper.requests.Session')
+    def test_requestData_autologin_success(self, mock_Session):
         '''Test a reply where the server needs login and library performs it
         '''
         contentStr = 'test_requestData_autologin correct result'
+        resp = MockResponse(status_code=200)
+        resp.content = contentStr.encode(resp.encoding)
+        self.prepareMockSession(mock_Session, mockSuccessResponse=resp)
 
-        def successResponse(url: str, params: dict):
-            result = MockResponse(status_code=200)
-            result.content = contentStr.encode(result.encoding)
-            return result
-        helper = ForceAuthenticatedReply(self._host, self._user, self._pass,
-                                         successResponse)
-        mock_get.side_effect = helper.get_response
-
-        got = self._component._requestData('connected_device_list',
+        got = self._component._requestData(dataService.ConnectedDevices,
                                            autologin=True)
-        exp = resultValue(resultState.Completed, contentStr)
+        exp = resultValue(resultState.Completed, payload=contentStr)
 
         self.assertEqual(got, exp)
 
-    @mock.patch('routerscraper.basescraper.requests.get')
-    def test_requestData_autologin_fail_step0(self, mock_get):
-        '''Test a reply where the server needs login and login failed at step 0
+    @mock.patch('routerscraper.basescraper.requests.Session')
+    def test_requestData_autologin_fail(self, mock_Session):
+        '''Test a reply where the server needs login and login failed
+
+        Login fail reason is not important; let's test with a connection error
+        at step 1
         '''
-        def successResponse(url: str, params: dict):
-            return MockResponse(status_code=200, content=b'Dummy')
-        helper = ForceAuthenticatedReply(self._host, self._user, self._pass,
-                                         successResponse)
-        helper.setExecuteStep(0, False)
-        mock_get.side_effect = helper.get_response
+        self.prepareMockSession(mock_Session,
+                                mock1Response=MockResponse(status_code=400))
 
-        got = self._component._requestData('connected_device_list',
-                                           autologin=True).state
-        exp = resultState.MustLogin
-
-        self.assertEqual(got, exp)
-
-    @mock.patch('routerscraper.basescraper.requests.get')
-    def test_requestData_autologin_fail_step1(self, mock_get):
-        '''Test a reply where the server needs login and login failed at step 1
-        '''
-        def successResponse(url: str, params: dict):
-            return MockResponse(status_code=200, content=b'Dummy')
-        helper = ForceAuthenticatedReply(self._host, self._user, self._pass,
-                                         successResponse)
-        helper.setExecuteStep(1, False)
-        mock_get.side_effect = helper.get_response
-
-        got = self._component._requestData('connected_device_list',
+        got = self._component._requestData(dataService.ConnectedDevices,
                                            autologin=True).state
         exp = resultState.MustLogin
 
@@ -190,203 +216,237 @@ class TestFastgate_dn8245f2(unittest.TestCase):
     # Check login                      #
     ####################################
 
-    @mock.patch('routerscraper.basescraper.requests.get')
-    def test_login_ConnectionError_step1(self, mock_get):
+    @mock.patch('routerscraper.basescraper.requests.Session')
+    def test_login_ConnectionError_step1(self, mock_Session):
         '''Test login fails for ConnectionError at step 1
         '''
-        mock_get.return_value = MockResponse(status_code=400)
+        self.prepareMockSession(mock_Session,
+                                mock1Response=MockResponse(status_code=400))
 
         got = self._component.login()
         exp = loginResult.ConnectionError
 
         self.assertEqual(got, exp)
-        mock_get.assert_called_once_with(f'http://{self._host}/status.cgi',
-                                         params={
-                                            'nvget': 'login_confirm',
-                                            'cmd': '7'
-                                         }, cookies=None)
 
-    @mock.patch('routerscraper.basescraper.requests.get')
-    def test_login_noJson_step1(self, mock_get):
+        gotFuncCalls = self._component._session.storedRequests
+        expFuncCalls = [self.login_cmd7_expFuncCall()]
+
+        self.assertEqual(gotFuncCalls, expFuncCalls)
+
+    @mock.patch('routerscraper.basescraper.requests.Session')
+    def test_login_noJson_step1(self, mock_Session):
         '''Test login fails for missing JSON at step 1
         '''
-        content = b'test_login_noJson_step1 wrong data'
-        mock_get.return_value = MockResponse(status_code=200, content=content)
+        contentStr = 'test_login_noJson_step1 wrong data'
+        resp = MockResponse(status_code=200)
+        resp.content = contentStr.encode(resp.encoding)
+
+        self.prepareMockSession(mock_Session, mock1Response=resp)
 
         got = self._component.login()
         exp = loginResult.ConnectionError
 
         self.assertEqual(got, exp)
-        mock_get.assert_called_once_with(f'http://{self._host}/status.cgi',
-                                         params={
-                                            'nvget': 'login_confirm',
-                                            'cmd': '7'
-                                         }, cookies=None)
 
-    @mock.patch('routerscraper.basescraper.requests.get')
-    def test_login_locked(self, mock_get):
+        gotFuncCalls = self._component._session.storedRequests
+        expFuncCalls = [self.login_cmd7_expFuncCall()]
+
+        self.assertEqual(gotFuncCalls, expFuncCalls)
+
+    @mock.patch('routerscraper.basescraper.requests.Session')
+    def test_login_locked(self, mock_Session):
         '''Test login fails because login was locked
         '''
-        json_data = self.login_cmd7_reply(login_locked=True)
-        contentStr = json.dumps(json_data)
-        positiveResponse = MockResponse(status_code=200)
-        positiveResponse.json_data = json_data
-        positiveResponse.content = contentStr.encode(positiveResponse.encoding)
-        mock_get.return_value = positiveResponse
+        resp = SessionMock_Auth._generate_step1_response('', {},
+                                                         login_locked=True)
+
+        self.prepareMockSession(mock_Session, mock1Response=resp)
 
         got = self._component.login()
         exp = loginResult.Locked
 
         self.assertEqual(got, exp)
-        mock_get.assert_called_once_with(f'http://{self._host}/status.cgi',
-                                         params={
-                                            'nvget': 'login_confirm',
-                                            'cmd': '7'
-                                         }, cookies=None)
 
-    @mock.patch('routerscraper.basescraper.requests.get')
-    def test_login_no_token(self, mock_get):
+        gotFuncCalls = self._component._session.storedRequests
+        expFuncCalls = [self.login_cmd7_expFuncCall()]
+
+        self.assertEqual(gotFuncCalls, expFuncCalls)
+
+    @mock.patch('routerscraper.basescraper.requests.Session')
+    def test_login_no_token(self, mock_Session):
         '''Test login fails because no token was provided
         '''
-        json_data = self.login_cmd7_reply(token=None)
-        contentStr = json.dumps(json_data)
-        positiveResponse = MockResponse(status_code=200)
-        positiveResponse.json_data = json_data
-        positiveResponse.content = contentStr.encode(positiveResponse.encoding)
-        mock_get.return_value = positiveResponse
+        resp = SessionMock_Auth._generate_step1_response('', {}, no_token=True)
+
+        self.prepareMockSession(mock_Session, mock1Response=resp)
 
         got = self._component.login()
         exp = loginResult.NoToken
 
         self.assertEqual(got, exp)
-        mock_get.assert_called_once_with(f'http://{self._host}/status.cgi',
-                                         params={
-                                            'nvget': 'login_confirm',
-                                            'cmd': '7'
-                                         }, cookies=None)
 
-    @mock.patch('routerscraper.basescraper.requests.get')
-    def test_login_ConnectionError_step2(self, mock_get):
+        gotFuncCalls = self._component._session.storedRequests
+        expFuncCalls = [self.login_cmd7_expFuncCall()]
+
+        self.assertEqual(gotFuncCalls, expFuncCalls)
+
+    @mock.patch('routerscraper.basescraper.requests.Session')
+    def test_login_ConnectionError_step2(self, mock_Session):
         '''Test login fails for ConnectionError at step 2
         '''
-        token = self.create_random_token()
-        json_data = self.login_cmd7_reply(token=token)
-        contentStr = json.dumps(json_data)
-        firstResponse = MockResponse(status_code=200)
-        firstResponse.json_data = json_data
-        firstResponse.content = contentStr.encode(firstResponse.encoding)
-        secondResponse = MockResponse(status_code=400)
-        mock_get.side_effect = [firstResponse, secondResponse]
+        self.prepareMockSession(mock_Session,
+                                mock2Response=MockResponse(status_code=400))
 
         got = self._component.login()
         exp = loginResult.ConnectionError
 
         self.assertEqual(got, exp)
 
-        calledParams = {
-                'nvget': 'login_confirm',
-                'cmd': '3',
-                'username': self._user,
-                'password': self._hashedpass,
-                'token': token
-            }
-        mock_get.assert_called_with(f'http://{self._host}/status.cgi',
-                                    params=calledParams, cookies=None)
+        gotFuncCalls = self._component._session.storedRequests
 
-    @mock.patch('routerscraper.basescraper.requests.get')
-    def test_login_noJson_step2(self, mock_get):
+        # extracting token
+        if len(gotFuncCalls) >= 2:
+            token = gotFuncCalls[1].reqParameters.get('token')
+        else:
+            token = None
+
+        expFuncCalls = [
+                self.login_cmd7_expFuncCall(),
+                self.login_cmd3_expFuncCall(token)
+            ]
+
+        self.assertEqual(gotFuncCalls, expFuncCalls)
+
+    @mock.patch('routerscraper.basescraper.requests.Session')
+    def test_login_noJson_step2(self, mock_Session):
         '''Test login fails for missing JSON at step 2
         '''
-        token = self.create_random_token()
-        json_data = self.login_cmd7_reply(token=token)
-        contentStr = json.dumps(json_data)
-        firstResponse = MockResponse(status_code=200)
-        firstResponse.json_data = json_data
-        firstResponse.content = contentStr.encode(firstResponse.encoding)
-        content2 = b'test_login_noJson_step2 wrong data'
-        secondResponse = MockResponse(status_code=200, content=content2)
-        mock_get.side_effect = [firstResponse, secondResponse]
+        contentStr = 'test_login_noJson_step2 wrong data'
+        resp = MockResponse(status_code=200)
+        resp.content = contentStr.encode(resp.encoding)
+
+        self.prepareMockSession(mock_Session, mock2Response=resp)
 
         got = self._component.login()
         exp = loginResult.ConnectionError
 
         self.assertEqual(got, exp)
 
-        calledParams = {
-                'nvget': 'login_confirm',
-                'cmd': '3',
-                'username': self._user,
-                'password': self._hashedpass,
-                'token': token
-            }
-        mock_get.assert_called_with(f'http://{self._host}/status.cgi',
-                                    params=calledParams, cookies=None)
+        gotFuncCalls = self._component._session.storedRequests
 
-    @mock.patch('routerscraper.basescraper.requests.get')
-    def test_login_wrong_user(self, mock_get):
+        # extracting token
+        if len(gotFuncCalls) >= 2:
+            token = gotFuncCalls[1].reqParameters.get('token')
+        else:
+            token = None
+
+        expFuncCalls = [
+                self.login_cmd7_expFuncCall(),
+                self.login_cmd3_expFuncCall(token)
+            ]
+
+        self.assertEqual(gotFuncCalls, expFuncCalls)
+
+    @mock.patch('routerscraper.basescraper.requests.Session')
+    def test_login_wrong_user(self, mock_Session):
         '''Test login fails for wrong user
         '''
-        def successResponse(url: str, params: dict):
-            return MockResponse(status_code=200, content=b'Dummy')
-        helper = ForceAuthenticatedReply(self._host, 'wrongUser', self._pass,
-                                         successResponse)
-        mock_get.side_effect = helper.get_response
+        self.prepareMockSession(mock_Session, user='wrongUser')
 
         got = self._component.login()
         exp = loginResult.WrongUser
 
         self.assertEqual(got, exp)
 
-    @mock.patch('routerscraper.basescraper.requests.get')
-    def test_login_wrong_password(self, mock_get):
+        gotFuncCalls = self._component._session.storedRequests
+
+        # extracting token
+        if len(gotFuncCalls) >= 2:
+            token = gotFuncCalls[1].reqParameters.get('token')
+        else:
+            token = None
+
+        expFuncCalls = [
+                self.login_cmd7_expFuncCall(),
+                self.login_cmd3_expFuncCall(token)
+            ]
+
+        self.assertEqual(gotFuncCalls, expFuncCalls)
+
+    @mock.patch('routerscraper.basescraper.requests.Session')
+    def test_login_wrong_password(self, mock_Session):
         '''Test login fails for wrong password
         '''
-        def successResponse(url: str, params: dict):
-            return MockResponse(status_code=200, content=b'Dummy')
-        helper = ForceAuthenticatedReply(self._host, self._user, 'wrongPass',
-                                         successResponse)
-        mock_get.side_effect = helper.get_response
+        self.prepareMockSession(mock_Session, password='wrongPass')
 
         got = self._component.login()
         exp = loginResult.WrongPass
 
         self.assertEqual(got, exp)
 
-    @mock.patch('routerscraper.basescraper.requests.get')
-    def test_login_success(self, mock_get):
+        gotFuncCalls = self._component._session.storedRequests
+
+        # extracting token
+        if len(gotFuncCalls) >= 2:
+            token = gotFuncCalls[1].reqParameters.get('token')
+        else:
+            token = None
+
+        expFuncCalls = [
+                self.login_cmd7_expFuncCall(),
+                self.login_cmd3_expFuncCall(token)
+            ]
+
+        self.assertEqual(gotFuncCalls, expFuncCalls)
+
+    @mock.patch('routerscraper.basescraper.requests.Session')
+    def test_login_success(self, mock_Session):
         '''Test login was successful
         '''
-        def successResponse(url: str, params: dict):
-            return MockResponse(status_code=200, content=b'Dummy')
-        helper = ForceAuthenticatedReply(self._host, self._user, self._pass,
-                                         successResponse)
-        mock_get.side_effect = helper.get_response
+        resp = MockResponse(status_code=200, content=b'Dummy')
+
+        self.prepareMockSession(mock_Session, mockSuccessResponse=resp)
 
         got = self._component.login()
         exp = loginResult.Success
 
         self.assertEqual(got, exp)
 
+        gotFuncCalls = self._component._session.storedRequests
+
+        # extracting token
+        if len(gotFuncCalls) >= 2:
+            token = gotFuncCalls[1].reqParameters.get('token')
+        else:
+            token = None
+
+        expFuncCalls = [
+                self.login_cmd7_expFuncCall(),
+                self.login_cmd3_expFuncCall(token)
+            ]
+
+        self.assertEqual(gotFuncCalls, expFuncCalls)
+
     ####################################
     # Check listDevices                #
     ####################################
 
-    @mock.patch('routerscraper.basescraper.requests.get')
+    @mock.patch.object(requests.Session, 'get')
     def test_listDevices_ConnectionError(self, mock_get):
         '''Test listDevices fails for ConnectionError
         '''
         mock_get.return_value = MockResponse(status_code=400)
 
         got = self._component.listDevices()
-        exp = []
+        exp = None
 
         self.assertEqual(got, exp)
         mock_get.assert_called_once_with(f'http://{self._host}/status.cgi',
                                          params={
                                             'nvget': 'connected_device_list',
-                                         }, cookies=None)
+                                         })
 
-    @mock.patch('routerscraper.basescraper.requests.get')
+    @mock.patch.object(requests.Session, 'get')
     def test_listDevices_noJson(self, mock_get):
         '''Test listDevices fails for missing JSON
         '''
@@ -394,21 +454,21 @@ class TestFastgate_dn8245f2(unittest.TestCase):
         mock_get.return_value = MockResponse(status_code=200, content=content)
 
         got = self._component.listDevices()
-        exp = []
+        exp = None
 
         self.assertEqual(got, exp)
         mock_get.assert_called_once_with(f'http://{self._host}/status.cgi',
                                          params={
                                             'nvget': 'connected_device_list',
-                                         }, cookies=None)
+                                         })
 
-    @mock.patch('routerscraper.basescraper.requests.get')
+    @mock.patch.object(requests.Session, 'get')
     def test_listDevices_emptyJson(self, mock_get):
         '''Test listDevices has no output for an empty JSON
         '''
         json_data = {}
-        mock_get.return_value = MockResponse(status_code=200,
-                                             json_data=json_data)
+        content = json.dumps(json_data).encode()
+        mock_get.return_value = MockResponse(status_code=200, content=content)
 
         got = self._component.listDevices()
         exp = []
@@ -417,15 +477,15 @@ class TestFastgate_dn8245f2(unittest.TestCase):
         mock_get.assert_called_once_with(f'http://{self._host}/status.cgi',
                                          params={
                                             'nvget': 'connected_device_list',
-                                         }, cookies=None)
+                                         })
 
-    @mock.patch('routerscraper.basescraper.requests.get')
+    @mock.patch.object(requests.Session, 'get')
     def test_listDevices_emptyItem(self, mock_get):
         '''Test listDevices has no output for an empty connected_device_list
         '''
         json_data = {'connected_device_list': {}}
-        mock_get.return_value = MockResponse(status_code=200,
-                                             json_data=json_data)
+        content = json.dumps(json_data).encode()
+        mock_get.return_value = MockResponse(status_code=200, content=content)
 
         got = self._component.listDevices()
         exp = []
@@ -434,9 +494,9 @@ class TestFastgate_dn8245f2(unittest.TestCase):
         mock_get.assert_called_once_with(f'http://{self._host}/status.cgi',
                                          params={
                                             'nvget': 'connected_device_list',
-                                         }, cookies=None)
+                                         })
 
-    @mock.patch('routerscraper.basescraper.requests.get')
+    @mock.patch.object(requests.Session, 'get')
     def test_listDevices_missingTotal(self, mock_get):
         '''Test listDevices has no output when there is no total
         '''
@@ -448,8 +508,8 @@ class TestFastgate_dn8245f2(unittest.TestCase):
         for i, c in enumerate(connDevs):
             connect_list.update(self.connectedDevice_to_dict(c, i))
         json_data = {'connected_device_list': connect_list}
-        mock_get.return_value = MockResponse(status_code=200,
-                                             json_data=json_data)
+        content = json.dumps(json_data).encode()
+        mock_get.return_value = MockResponse(status_code=200, content=content)
 
         got = self._component.listDevices()
         exp = []
@@ -458,9 +518,9 @@ class TestFastgate_dn8245f2(unittest.TestCase):
         mock_get.assert_called_once_with(f'http://{self._host}/status.cgi',
                                          params={
                                             'nvget': 'connected_device_list',
-                                         }, cookies=None)
+                                         })
 
-    @mock.patch('routerscraper.basescraper.requests.get')
+    @mock.patch.object(requests.Session, 'get')
     def test_listDevices_success(self, mock_get):
         '''Test listDevices succeeds
         '''
@@ -476,8 +536,8 @@ class TestFastgate_dn8245f2(unittest.TestCase):
         for i, c in enumerate(connDevs):
             connect_list.update(self.connectedDevice_to_dict(c, i))
         json_data = {'connected_device_list': connect_list}
-        mock_get.return_value = MockResponse(status_code=200,
-                                             json_data=json_data)
+        content = json.dumps(json_data).encode()
+        mock_get.return_value = MockResponse(status_code=200, content=content)
 
         got = self._component.listDevices()
         exp = connDevs
@@ -486,9 +546,9 @@ class TestFastgate_dn8245f2(unittest.TestCase):
         mock_get.assert_called_once_with(f'http://{self._host}/status.cgi',
                                          params={
                                             'nvget': 'connected_device_list',
-                                         }, cookies=None)
+                                         })
 
-    @mock.patch('routerscraper.basescraper.requests.get')
+    @mock.patch.object(requests.Session, 'get')
     def test_listDevices_success_more(self, mock_get):
         '''Test listDevices succeeds and ignores too many devices
         '''
@@ -504,8 +564,8 @@ class TestFastgate_dn8245f2(unittest.TestCase):
         for i, c in enumerate(connDevs):
             connect_list.update(self.connectedDevice_to_dict(c, i))
         json_data = {'connected_device_list': connect_list}
-        mock_get.return_value = MockResponse(status_code=200,
-                                             json_data=json_data)
+        content = json.dumps(json_data).encode()
+        mock_get.return_value = MockResponse(status_code=200, content=content)
 
         got = self._component.listDevices()
         exp = connDevs[:2]
@@ -514,9 +574,9 @@ class TestFastgate_dn8245f2(unittest.TestCase):
         mock_get.assert_called_once_with(f'http://{self._host}/status.cgi',
                                          params={
                                             'nvget': 'connected_device_list',
-                                         }, cookies=None)
+                                         })
 
-    @mock.patch('routerscraper.basescraper.requests.get')
+    @mock.patch.object(requests.Session, 'get')
     def test_listDevices_success_fewer(self, mock_get):
         '''Test listDevices succeeds and ignores too few devices
         '''
@@ -530,8 +590,8 @@ class TestFastgate_dn8245f2(unittest.TestCase):
         for i, c in enumerate(connDevs):
             connect_list.update(self.connectedDevice_to_dict(c, i))
         json_data = {'connected_device_list': connect_list}
-        mock_get.return_value = MockResponse(status_code=200,
-                                             json_data=json_data)
+        content = json.dumps(json_data).encode()
+        mock_get.return_value = MockResponse(status_code=200, content=content)
 
         got = self._component.listDevices()
         exp = connDevs
@@ -540,9 +600,9 @@ class TestFastgate_dn8245f2(unittest.TestCase):
         mock_get.assert_called_once_with(f'http://{self._host}/status.cgi',
                                          params={
                                             'nvget': 'connected_device_list',
-                                         }, cookies=None)
+                                         })
 
-    @mock.patch('routerscraper.basescraper.requests.get')
+    @mock.patch.object(requests.Session, 'get')
     def test_listDevices_success_fewerInfo(self, mock_get):
         '''Test listDevices succeeds and ignores when some info is missing
         '''
@@ -557,8 +617,8 @@ class TestFastgate_dn8245f2(unittest.TestCase):
         c_lst.update(self.connectedDevice_to_dict(c, 5, skipNetwork=True))
         c_lst.update(self.connectedDevice_to_dict(c, 6))
         json_data = {'connected_device_list': c_lst}
-        mock_get.return_value = MockResponse(status_code=200,
-                                             json_data=json_data)
+        content = json.dumps(json_data).encode()
+        mock_get.return_value = MockResponse(status_code=200, content=content)
 
         got = self._component.listDevices()
         exp = [c, c]  # Expecting only the first and the last
@@ -567,4 +627,4 @@ class TestFastgate_dn8245f2(unittest.TestCase):
         mock_get.assert_called_once_with(f'http://{self._host}/status.cgi',
                                          params={
                                             'nvget': 'connected_device_list',
-                                         }, cookies=None)
+                                         })
