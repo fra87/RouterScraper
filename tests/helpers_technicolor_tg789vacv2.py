@@ -38,7 +38,10 @@ class SessionMock_Auth(SessionMock_Auth_Base):
         super().__init__()
         self._state = SessionState.Created
 
-    def initialize(self, host: str, user: str, password: str,
+    def initialize(self,
+                   host: str,
+                   user: str,
+                   password: str,
                    successResponse: typing.Callable,
                    auth1Response: typing.Callable = None,
                    auth2Response: typing.Callable = None,
@@ -51,7 +54,9 @@ class SessionMock_Auth(SessionMock_Auth_Base):
         would normally send.
 
         All the callbacks have prototype:
-        f(url: str, params: dict) -> MockResponse
+        f(url: str, params: dict, **kwargs) -> MockResponse
+
+        For kwargs documentation check _generate_auth_response
 
         Args:
             user (str): The username to authenticate
@@ -84,12 +89,24 @@ class SessionMock_Auth(SessionMock_Auth_Base):
 
         self._state = SessionState.Initialized
 
-    def _internal_process(self, type, url, params, args, kwargs
-                          ) -> MockResponse:
-        '''Get the response to the GET request performed
+    def _internal_process(self, type: str, url: str, params: dict, args: list,
+                          kwargs: dict) -> MockResponse:
+        '''Function used to actually process a request
+
+        type can be either 'get' or 'post'; other values are filtered in the
+        base process function.
+
+        Args:
+            type (str): The type of the request
+            url (str): The URL of the request
+            params (dict): The params dictionary for the request
+            args (list): Unnamed arguments to the GET or POST call (excluding
+                         URL and params)
+            kwargs (dict): Named arguments to the GET or POST call (excluding
+                         URL and params)
 
         Returns:
-            MockResponse: The response to the GET request
+            MockResponse: The response to the GET or POST call
         '''
         if self._state == SessionState.Created:
             raise RuntimeError('SessionMock_Auth item was not initialized')
@@ -104,13 +121,13 @@ class SessionMock_Auth(SessionMock_Auth_Base):
         service = url[len(hostname)+1:]
 
         if type == 'get':
-            params['##generated_token'] = self._token
+            other_params = {'generated_token': self._token}
 
             # Request was authenticated; return success response
             if self._state == SessionState.Authorized:
-                return self._successResponse(url, params)
+                return self._successResponse(url, params, **other_params)
             else:
-                return self._mustLoginResponse(url, params)
+                return self._mustLoginResponse(url, params, **other_params)
 
         if type == 'post' and service == 'authenticate':
             if self._state == SessionState.Initialized:
@@ -127,10 +144,10 @@ class SessionMock_Auth(SessionMock_Auth_Base):
                 if not user or not A:
                     return MockResponse(status_code=400)
 
-                params['##generated_token'] = self._token
+                other_params = {'generated_token': self._token}
 
                 if user != self._user:
-                    params['##fail_I'] = True
+                    other_params['fail_I'] = True
                 else:
                     cfg = technicolor_tg789vacv2.srp_configuration
                     salt, vkey = srp.create_salted_verification_key(self._user,
@@ -139,11 +156,11 @@ class SessionMock_Auth(SessionMock_Auth_Base):
                     self._svr = srp.Verifier(user, salt, vkey,
                                              bytes.fromhex(A), **cfg)
                     s, B = self._svr.get_challenge()
-                    params['##s'] = s.hex()
-                    params['##B'] = B.hex()
+                    other_params['s'] = s.hex()
+                    other_params['B'] = B.hex()
                     self._state = SessionState.Requested_sM
 
-                return self._auth1Response(url, params)
+                return self._auth1Response(url, params, **other_params)
 
             if self._state == SessionState.Requested_sM:
                 # Reset state (so if something goes wrong authentication shall
@@ -167,15 +184,15 @@ class SessionMock_Auth(SessionMock_Auth_Base):
 
                 HAMK = self._svr.verify_session(bytes.fromhex(M))
 
-                params['##generated_token'] = self._token
+                other_params = {'generated_token': self._token}
 
                 if not HAMK:
-                    params['##fail_M'] = True
+                    other_params['fail_M'] = True
                 else:
-                    params['##M'] = HAMK.hex()
+                    other_params['M'] = HAMK.hex()
                     self._state = SessionState.Authorized
 
-                return self._auth2Response(url, params)
+                return self._auth2Response(url, params, **other_params)
 
         # Not a valid request
         return MockResponse(status_code=400)
@@ -224,11 +241,13 @@ class SessionMock_Auth(SessionMock_Auth_Base):
                             encoding=encoding)
 
     @classmethod
-    def _generate_login_request(cls, url: str, params: dict) -> MockResponse:
+    def _generate_login_request(cls, url: str, params: dict, **kwargs
+                                ) -> MockResponse:
         '''Generate a login request message
 
-        params['##generated_token'] shall contain the generated token,
-        otherwise a random one will be generated
+        kwargs values:
+        - generated_token: shall contain the generated token, otherwise a
+                           random one will be generated
 
         Args:
             url (str): The url for the request
@@ -237,8 +256,7 @@ class SessionMock_Auth(SessionMock_Auth_Base):
         Returns:
             MockResponse: The login request
         '''
-        token = (params.get('##generated_token')
-                 if isinstance(params, dict) else None)
+        token = kwargs.get('generated_token', None)
 
         return cls._fileToMockResponse('mustLogin_ISO-8859-1.html',
                                        encoding='ISO-8859-1',
@@ -246,29 +264,25 @@ class SessionMock_Auth(SessionMock_Auth_Base):
                                        token=token)
 
     @classmethod
-    def _generate_auth_response(cls, url: str, params: dict) -> MockResponse:
+    def _generate_auth_response(cls, url: str, params: dict, **kwargs
+                                ) -> MockResponse:
         '''Generate a response for an authentication
 
-        The reply will be the one that the router would normally send to a
-        step1 request
+        The reply will be the one that the router would normally send to an
+        auth request (either step 1 or 2)
 
-        params['##s'] shall contain the param s of the response, otherwise no
-        s param will be sent
-
-        params['##B'] shall contain the param B of the response, otherwise no
-        B param will be sent
-
-        params['##M'] shall contain the param M of the response, otherwise no
-        M param will be sent
-
-        To send an error message failure the params['##error'] can be used. The
-        message passed as params['##error'] is sent in the result object.
-
-        If params['##fail_I'] is set and Truthy, the default error message for
-        I mismatch will be set if ##error and ##fail_M are not set.
-
-        If params['##fail_M'] is set and Truthy, the default error message for
-        M mismatch will be set if ##error is not set.
+        kwargs values:
+        - s: shall contain the param s of the response, otherwise no s param
+             will be sent
+        - B: shall contain the param B of the response, otherwise no B param
+             will be sent
+        - M: shall contain the param M of the response, otherwise no M param
+             will be sent
+        - error: The error message to be embedded
+        - fail_I: if it is present and Truthy then the default message for I
+                  mismatch will be set (overriden by error and fail_M)
+        - fail_M: if it is present and Truthy then the default message for M
+                  mismatch will be set (overriden by error)
 
         Usually step1 responses have s and B, while step2 responses have M
 
@@ -279,12 +293,12 @@ class SessionMock_Auth(SessionMock_Auth_Base):
         Returns:
             MockResponse: The positive response to a step1 request
         '''
-        s = params.get('##s', None)
-        B = params.get('##B', None)
-        M = params.get('##M', None)
-        error = 'failed' if params.get('##fail_I', False) else None
-        error = 'M didn\'t match' if params.get('##fail_M', False) else error
-        error = params.get('##error', error)
+        s = kwargs.get('s', None)
+        B = kwargs.get('B', None)
+        M = kwargs.get('M', None)
+        error = 'failed' if kwargs.get('fail_I', False) else None
+        error = 'M didn\'t match' if kwargs.get('fail_M', False) else error
+        error = kwargs.get('error', error)
 
         result = MockResponse(status_code=200, encoding='utf-8')
         json_data = {}

@@ -84,7 +84,7 @@ class baseScraper(ABC):
                                           Defaults to False.
 
         Raises:
-            ValueError: If service is not in the _validServices list
+            ValueError: If service is not a valid service
 
         Returns:
             resultValue: The result of the request
@@ -225,6 +225,8 @@ class baseScraper(ABC):
     @abstractmethod
     def listDevices(self) -> list[connectedDevice]:
         '''Get the list of connected devices
+
+        If there was a connection error the function returns None
 
         Returns:
             list[connectedDevice]: The list of connected devices

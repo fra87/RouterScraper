@@ -11,7 +11,7 @@ import unittest
 from unittest import mock
 import requests
 
-from helpers_common import MockResponse
+from helpers_common import MockResponse, RecordedRequest
 from helpers_technicolor_tg789vacv2 import SessionMock_Auth
 from routerscraper.technicolor_tg789vacv2 import technicolor_tg789vacv2
 from routerscraper.dataTypes import (
@@ -77,19 +77,19 @@ class TestTechnicolor_tg789vacv2(unittest.TestCase):
         loginResponse = None
 
         if 'mockSuccessResponse' in kwargs:
-            def mockSuccessResponseFun(url: str, params: dict):
+            def mockSuccessResponseFun(url: str, params: dict, **_):
                 return kwargs.get('mockSuccessResponse')
             successResponse = mockSuccessResponseFun
         if 'mockAuth1Response' in kwargs:
-            def mockAuth1ResponseFun(url: str, params: dict):
+            def mockAuth1ResponseFun(url: str, params: dict, **_):
                 return kwargs.get('mockAuth1Response')
             auth1Response = mockAuth1ResponseFun
         if 'mockAuth2Response' in kwargs:
-            def mockAuth2ResponseFun(url: str, params: dict):
+            def mockAuth2ResponseFun(url: str, params: dict, **_):
                 return kwargs.get('mockAuth2Response')
             auth2Response = mockAuth2ResponseFun
         if 'mockLoginResponse' in kwargs:
-            def mockLoginResponseFun(url: str, params: dict):
+            def mockLoginResponseFun(url: str, params: dict, **_):
                 return kwargs.get('mockLoginResponse')
             loginResponse = mockLoginResponseFun
 
@@ -122,7 +122,7 @@ class TestTechnicolor_tg789vacv2(unittest.TestCase):
             dict: The dictionary with the arguments
         '''
         result = gotFuncCall
-        reqParameters = result.get('reqParameters', None)
+        reqParameters = result.reqParameters
 
         if reqParameters:
             if 'CSRFtoken' in reqParameters:
@@ -131,7 +131,7 @@ class TestTechnicolor_tg789vacv2(unittest.TestCase):
                 reqParameters['A'] = cls.random_tag
             if 'M' in reqParameters:
                 reqParameters['M'] = cls.random_tag
-            result['reqParameters'] = reqParameters
+            result.reqParameters = reqParameters
 
         return result
 
@@ -143,14 +143,12 @@ class TestTechnicolor_tg789vacv2(unittest.TestCase):
         Returns:
             dict: The dictionary with the arguments
         '''
+        type = 'get'
+        url = 'http://correctHost/'
+        reqParameters = {}
 
-        return {
-                'type': 'get',
-                'url': 'http://correctHost/',
-                'reqParameters': {},
-                'other_args': [],
-                'other_kwargs': {}
-            }
+        return RecordedRequest(type=type, url=url, reqParameters=reqParameters,
+                               other_args=[], other_kwargs={})
 
     @classmethod
     def login_step1_expFuncCall(cls, user: str = 'correctUser') -> dict:
@@ -166,18 +164,13 @@ class TestTechnicolor_tg789vacv2(unittest.TestCase):
         Returns:
             dict: The dictionary with the arguments
         '''
+        type = 'post'
+        url = 'http://correctHost/authenticate'
+        reqParameters = {'CSRFtoken': cls.random_tag, 'I': user,
+                         'A': cls.random_tag}
 
-        return {
-                'type': 'post',
-                'url': 'http://correctHost/authenticate',
-                'reqParameters': {
-                        'CSRFtoken': cls.random_tag,
-                        'I': user,
-                        'A': cls.random_tag
-                    },
-                'other_args': [],
-                'other_kwargs': {}
-            }
+        return RecordedRequest(type=type, url=url, reqParameters=reqParameters,
+                               other_args=[], other_kwargs={})
 
     @classmethod
     def login_step2_expFuncCall(cls) -> dict:
@@ -189,17 +182,12 @@ class TestTechnicolor_tg789vacv2(unittest.TestCase):
         Returns:
             dict: The dictionary with the arguments
         '''
+        type = 'post'
+        url = 'http://correctHost/authenticate'
+        reqParameters = {'CSRFtoken': cls.random_tag, 'M': cls.random_tag}
 
-        return {
-                'type': 'post',
-                'url': 'http://correctHost/authenticate',
-                'reqParameters': {
-                        'CSRFtoken': cls.random_tag,
-                        'M': cls.random_tag
-                    },
-                'other_args': [],
-                'other_kwargs': {}
-            }
+        return RecordedRequest(type=type, url=url, reqParameters=reqParameters,
+                               other_args=[], other_kwargs={})
 
     ####################################
     # Check _requestData login         #
@@ -281,10 +269,8 @@ class TestTechnicolor_tg789vacv2(unittest.TestCase):
     def test_login_no_token_step0(self, mock_Session):
         '''Test login fails for no token provided at step 0 (must login)
         '''
-        resp = SessionMock_Auth._generate_login_request(
-                '',
-                {'##generated_token': ''}
-            )
+        resp = SessionMock_Auth._generate_login_request('', {},
+                                                        generated_token='')
         self.prepareMockSession(mock_Session, mockLoginResponse=resp)
 
         got = self._component.login()
@@ -346,10 +332,7 @@ class TestTechnicolor_tg789vacv2(unittest.TestCase):
     def test_login_no_s_step1(self, mock_Session):
         '''Test login fails for not receiving s at step 1 (I, A)
         '''
-        resp = SessionMock_Auth._generate_auth_response(
-                '',
-                {'##B': 'deadbeef'}
-            )
+        resp = SessionMock_Auth._generate_auth_response('', {}, B='deadbeef')
         self.prepareMockSession(mock_Session, mockAuth1Response=resp)
 
         got = self._component.login()
@@ -370,10 +353,7 @@ class TestTechnicolor_tg789vacv2(unittest.TestCase):
     def test_login_no_B_step1(self, mock_Session):
         '''Test login fails for not receiving B at step 1 (I, A)
         '''
-        resp = SessionMock_Auth._generate_auth_response(
-                '',
-                {'##s': 'c0ffee'}
-            )
+        resp = SessionMock_Auth._generate_auth_response('', {}, s='c0ffee')
         self.prepareMockSession(mock_Session, mockAuth1Response=resp)
 
         got = self._component.login()
@@ -394,10 +374,8 @@ class TestTechnicolor_tg789vacv2(unittest.TestCase):
     def test_login_no_M_step1(self, mock_Session):
         '''Test login fails for not being able to generate M at step 1 (I, A)
         '''
-        resp = SessionMock_Auth._generate_auth_response(
-                '',
-                {'##s': 'c0ffee', '##B': '00'}
-            )
+        resp = SessionMock_Auth._generate_auth_response('', {}, s='c0ffee',
+                                                        B='00')
         self.prepareMockSession(mock_Session, mockAuth1Response=resp)
 
         got = self._component.login()
@@ -467,10 +445,7 @@ class TestTechnicolor_tg789vacv2(unittest.TestCase):
     def test_login_error_step2(self, mock_Session):
         '''Test login fails for receiving an error at step 2 (M)
         '''
-        resp = SessionMock_Auth._generate_auth_response(
-                '',
-                {'##error': 'Random error'}
-            )
+        resp = SessionMock_Auth._generate_auth_response('', {}, error='Err')
         self.prepareMockSession(mock_Session, mockAuth2Response=resp)
 
         got = self._component.login()
@@ -513,7 +488,7 @@ class TestTechnicolor_tg789vacv2(unittest.TestCase):
     def test_login_wrong_verification(self, mock_Session):
         '''Test login fails for having a wrong verification code (HAMK)
         '''
-        resp = SessionMock_Auth._generate_auth_response('', {'##M': 'baaaad'})
+        resp = SessionMock_Auth._generate_auth_response('', {}, M='baaaaaad')
         self.prepareMockSession(mock_Session, mockAuth2Response=resp)
 
         got = self._component.login()

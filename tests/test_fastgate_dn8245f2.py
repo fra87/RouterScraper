@@ -13,7 +13,7 @@ import base64
 import json
 import requests
 
-from helpers_common import MockResponse
+from helpers_common import MockResponse, RecordedRequest
 from helpers_fastgate_dn8245f2 import SessionMock_Auth
 from routerscraper.fastgate_dn8245f2 import fastgate_dn8245f2
 from routerscraper.dataTypes import (
@@ -112,11 +112,11 @@ class TestFastgate_dn8245f2(unittest.TestCase):
                 return kwargs.get('mockSuccessResponse')
             successResponse = mockSuccessResponseFun
         if 'mock1Response' in kwargs:
-            def mock1ResponseFun(url: str, params: dict):
+            def mock1ResponseFun(url: str, params: dict, **_):
                 return kwargs.get('mock1Response')
             step1Response = mock1ResponseFun
         if 'mock2Response' in kwargs:
-            def mock2ResponseFun(url: str, params: dict):
+            def mock2ResponseFun(url: str, params: dict, **_):
                 return kwargs.get('mock2Response')
             step2Response = mock2ResponseFun
 
@@ -140,14 +140,12 @@ class TestFastgate_dn8245f2(unittest.TestCase):
         Returns:
             dict: The dictionary with the arguments
         '''
+        type = 'get'
+        url = 'http://correctHost/status.cgi'
+        reqParameters = {'cmd': '7', 'nvget': 'login_confirm'}
 
-        return {
-                'type': 'get',
-                'url': 'http://correctHost/status.cgi',
-                'reqParameters': {'cmd': '7', 'nvget': 'login_confirm'},
-                'other_args': [],
-                'other_kwargs': {}
-            }
+        return RecordedRequest(type=type, url=url, reqParameters=reqParameters,
+                               other_args=[], other_kwargs={})
 
     def login_cmd3_expFuncCall(self, token) -> dict:
         '''Return the expected function arguments in a call for CMD3 service
@@ -158,20 +156,14 @@ class TestFastgate_dn8245f2(unittest.TestCase):
         Returns:
             dict: The dictionary with the arguments
         '''
+        type = 'get'
+        url = 'http://correctHost/status.cgi'
+        reqParameters = {'cmd': '3', 'nvget': 'login_confirm',
+                         'username': self._user, 'password': self._hashedpass,
+                         'token': token}
 
-        return {
-                'type': 'get',
-                'url': 'http://correctHost/status.cgi',
-                'reqParameters': {
-                        'cmd': '3',
-                        'nvget': 'login_confirm',
-                        'username': self._user,
-                        'password': self._hashedpass,
-                        'token': token
-                    },
-                'other_args': [],
-                'other_kwargs': {}
-            }
+        return RecordedRequest(type=type, url=url, reqParameters=reqParameters,
+                               other_args=[], other_kwargs={})
 
     ####################################
     # Check _requestData login         #
@@ -196,7 +188,6 @@ class TestFastgate_dn8245f2(unittest.TestCase):
         contentStr = 'test_requestData_autologin correct result'
         resp = MockResponse(status_code=200)
         resp.content = contentStr.encode(resp.encoding)
-
         self.prepareMockSession(mock_Session, mockSuccessResponse=resp)
 
         got = self._component._requestData(dataService.ConnectedDevices,
@@ -266,10 +257,8 @@ class TestFastgate_dn8245f2(unittest.TestCase):
     def test_login_locked(self, mock_Session):
         '''Test login fails because login was locked
         '''
-        resp = SessionMock_Auth._generate_step1_response(
-                                            '',
-                                            params={'##login_locked': True}
-                                        )
+        resp = SessionMock_Auth._generate_step1_response('', {},
+                                                         login_locked=True)
 
         self.prepareMockSession(mock_Session, mock1Response=resp)
 
@@ -287,10 +276,7 @@ class TestFastgate_dn8245f2(unittest.TestCase):
     def test_login_no_token(self, mock_Session):
         '''Test login fails because no token was provided
         '''
-        resp = SessionMock_Auth._generate_step1_response(
-                                            '',
-                                            params={'##no_token': True}
-                                        )
+        resp = SessionMock_Auth._generate_step1_response('', {}, no_token=True)
 
         self.prepareMockSession(mock_Session, mock1Response=resp)
 
@@ -320,7 +306,7 @@ class TestFastgate_dn8245f2(unittest.TestCase):
 
         # extracting token
         if len(gotFuncCalls) >= 2:
-            token = gotFuncCalls[1].get('reqParameters', {}).get('token')
+            token = gotFuncCalls[1].reqParameters.get('token')
         else:
             token = None
 
@@ -350,7 +336,7 @@ class TestFastgate_dn8245f2(unittest.TestCase):
 
         # extracting token
         if len(gotFuncCalls) >= 2:
-            token = gotFuncCalls[1].get('reqParameters', {}).get('token')
+            token = gotFuncCalls[1].reqParameters.get('token')
         else:
             token = None
 
@@ -376,7 +362,7 @@ class TestFastgate_dn8245f2(unittest.TestCase):
 
         # extracting token
         if len(gotFuncCalls) >= 2:
-            token = gotFuncCalls[1].get('reqParameters', {}).get('token')
+            token = gotFuncCalls[1].reqParameters.get('token')
         else:
             token = None
 
@@ -402,7 +388,7 @@ class TestFastgate_dn8245f2(unittest.TestCase):
 
         # extracting token
         if len(gotFuncCalls) >= 2:
-            token = gotFuncCalls[1].get('reqParameters', {}).get('token')
+            token = gotFuncCalls[1].reqParameters.get('token')
         else:
             token = None
 
@@ -430,7 +416,7 @@ class TestFastgate_dn8245f2(unittest.TestCase):
 
         # extracting token
         if len(gotFuncCalls) >= 2:
-            token = gotFuncCalls[1].get('reqParameters', {}).get('token')
+            token = gotFuncCalls[1].reqParameters.get('token')
         else:
             token = None
 
@@ -452,7 +438,7 @@ class TestFastgate_dn8245f2(unittest.TestCase):
         mock_get.return_value = MockResponse(status_code=400)
 
         got = self._component.listDevices()
-        exp = []
+        exp = None
 
         self.assertEqual(got, exp)
         mock_get.assert_called_once_with(f'http://{self._host}/status.cgi',
@@ -468,7 +454,7 @@ class TestFastgate_dn8245f2(unittest.TestCase):
         mock_get.return_value = MockResponse(status_code=200, content=content)
 
         got = self._component.listDevices()
-        exp = []
+        exp = None
 
         self.assertEqual(got, exp)
         mock_get.assert_called_once_with(f'http://{self._host}/status.cgi',

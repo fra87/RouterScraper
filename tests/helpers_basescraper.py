@@ -21,7 +21,7 @@ from routerscraper.dataTypes import (
 
 
 class tester_for_requestData(baseScraper):
-    '''Class for testing _requestData
+    '''baseScraper implementation for testing _requestData
     '''
 
     # List of valid services
@@ -109,6 +109,8 @@ class tester_for_requestData(baseScraper):
     def listDevices(self) -> list[connectedDevice]:
         '''Get the list of connected devices
 
+        If there was a connection error the function returns None
+
         Returns:
             list[connectedDevice]: The list of connected devices
         '''
@@ -126,8 +128,25 @@ class SessionMock_Auth(SessionMock_Auth_Base):
         self._authenticated = False
         self.positiveResponse = True
 
-    def _internal_process(self, type, url, params, args, kwargs
-                          ) -> MockResponse:
+    def _internal_process(self, type: str, url: str, params: dict, args: list,
+                          kwargs: dict) -> MockResponse:
+        '''Function used to actually process a request
+
+        type can be either 'get' or 'post'; other values are filtered in the
+        base process function.
+
+        Args:
+            type (str): The type of the request
+            url (str): The URL of the request
+            params (dict): The params dictionary for the request
+            args (list): Unnamed arguments to the GET or POST call (excluding
+                         URL and params)
+            kwargs (dict): Named arguments to the GET or POST call (excluding
+                         URL and params)
+
+        Returns:
+            MockResponse: The response to the GET or POST call
+        '''
         if type != 'get':
             return MockResponse(status_code=400)
 

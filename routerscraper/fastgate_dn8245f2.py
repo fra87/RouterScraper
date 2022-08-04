@@ -45,6 +45,8 @@ class fastgate_dn8245f2(baseScraper):
                          ) -> str:
         '''Build the URL from the requestData parameters
 
+        If the URL cannot be built, None is returned
+
         Args:
             service (dataService): The service being requested
             params (dict[str, str]): The additional params being requested
@@ -65,7 +67,6 @@ class fastgate_dn8245f2(baseScraper):
         Returns:
             dict[str, str]: The params
         '''
-
         result = params if isinstance(params, dict) else {}
 
         if service in self._dataServicesParams:
@@ -102,7 +103,6 @@ class fastgate_dn8245f2(baseScraper):
         Returns:
             loginResult: The login outcome
         '''
-
         if cleanStart:
             self.resetSession()
 
@@ -163,6 +163,8 @@ class fastgate_dn8245f2(baseScraper):
     def listDevices(self) -> list[connectedDevice]:
         '''Get the list of connected devices
 
+        If there was a connection error the function returns None
+
         Returns:
             list[connectedDevice]: The list of connected devices
         '''
@@ -171,7 +173,7 @@ class fastgate_dn8245f2(baseScraper):
 
         # If the request was not successful return empty list
         if res.state != resultState.Completed:
-            return []
+            return None
 
         connLst = res.payload.as_json().get('connected_device_list', {})
 

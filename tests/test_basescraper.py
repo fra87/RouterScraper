@@ -12,7 +12,7 @@ from unittest import mock
 import json
 import requests
 
-from helpers_common import MockResponse
+from helpers_common import MockResponse, RecordedRequest
 from helpers_basescraper import tester_for_requestData, SessionMock_Auth
 from routerscraper.dataTypes import (
         dataService,
@@ -58,13 +58,9 @@ class TestBaseScraper(unittest.TestCase):
 
         got = self._component._session.lastRequest
 
-        exp = {
-                'type': 'get',
-                'url': 'testing_library_service',
-                'reqParameters': {'testpar': 'testval'},
-                'other_args': [],
-                'other_kwargs': {}
-            }
+        exp = RecordedRequest(type='get', url='testing_library_service',
+                              reqParameters={'testpar': 'testval'},
+                              other_args=[], other_kwargs={})
 
         self.assertEqual(got, exp)
 
@@ -82,13 +78,9 @@ class TestBaseScraper(unittest.TestCase):
 
         got = self._component._session.lastRequest
 
-        exp = {
-                'type': 'post',
-                'url': 'testing_library_service',
-                'reqParameters': {'testpar': 'testval'},
-                'other_args': [],
-                'other_kwargs': {}
-            }
+        exp = RecordedRequest(type='post', url='testing_library_service',
+                              reqParameters={'testpar': 'testval'},
+                              other_args=[], other_kwargs={})
 
         self.assertEqual(got, exp)
 

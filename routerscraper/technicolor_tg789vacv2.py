@@ -31,7 +31,7 @@ class technicolor_tg789vacv2(baseScraper):
         dataService.ConnectedDevices: 'modals/device-modal.lp',
     }
 
-    # Fixed value for k parameter in authentication
+    # Fixed value for authentication parameters
     srp_configuration = {
             'hash_alg': srp.SHA256,
             'ng_type': srp.NG_2048,
@@ -43,6 +43,9 @@ class technicolor_tg789vacv2(baseScraper):
                      autologin: bool = True, forceJSON: bool = False,
                      postRequest: bool = False) -> resultValue:
         '''Request data from the router
+
+        params will be passed in the "params" property for GET requests and in
+        the "data" property for POST requests
 
         Args:
             service (dataService): The service to request
@@ -59,7 +62,7 @@ class technicolor_tg789vacv2(baseScraper):
                                           Defaults to False.
 
         Raises:
-            ValueError: If service is not in the _validServices list
+            ValueError: If service is not a valid service
 
         Returns:
             resultValue: The result of the request
