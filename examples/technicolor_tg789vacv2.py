@@ -7,16 +7,8 @@
 # SPDX-FileCopyrightText: 2022 fra87
 #
 
-# Include repository directory to be able to include routerscraper folder
-import pathlib
 import sys
-sys.path.append(str(pathlib.PurePath(__file__).parent.parent))
-
-# Ignoring E402 (module level import not at top of file) since including
-# routerscraper requires the sys.path.append above
-from routerscraper.technicolor_tg789vacv2 import (  # noqa: E402
-        technicolor_tg789vacv2
-    )
+from routerscraper.technicolor_tg789vacv2 import technicolor_tg789vacv2
 
 
 def executeMain(host: str, user: str, password: str):
