@@ -27,18 +27,18 @@ clean:
 dist: $(VENV)/bin/activate check-git-clean check-git-on-main
 	@$(VENV)/bin/python3 -m build
 	@$(VENV)/bin/twine check dist/*
-	@echo Built distribution files; check them and then, eventually, run make deploy to upload to PyPI
+	@echo "Built distribution files; check them and then, eventually, run make deploy to upload to PyPI"
 
 deploy: $(VENV)/bin/activate
-	@[ "$(ls -A dist 2>/dev/null)" ] || { echo "No dist files; run make dist before"; false; }
-	@echo Uploading packages on PyPI. This operation cannot be undone.
+	@[ "$$(ls -A dist 2>/dev/null)" ] || { echo "No dist files; run make dist before"; false; }
+	@echo "Uploading packages on PyPI. This operation cannot be undone."
 	@( read -p "Are you sure? [y/N]: " sure && case "$$sure" in [yY]) true;; *) echo "Aborting"; false;; esac )
 	@$(VENV)/bin/twine upload dist/*
 
 ###################################
 # Recipes for virtual environment
 
-$(VENV)/bin/activate: pyproject.toml
+$(VENV)/bin/activate:
 # Clean before reinstalling (not to be put in dependencies otherwise it will
 # always be executed)
 	@make clean_venv --no-print-directory

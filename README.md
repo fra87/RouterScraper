@@ -31,7 +31,11 @@ At present the package was tested with the following routers firmwares
 - Fastgate Huawei DN8245f2 - software 1.0.1b
 - Technicolor TG789vac v2 - software 16.3.7636
 
-# Project layout
+# Developer notes
+
+Here are some additional notes for developing the library (not just using it).
+
+## Project layout
 
 - `README.md`: This file
 - `README.md.license`: License information for this file
@@ -59,7 +63,7 @@ At present the package was tested with the following routers firmwares
                                    Technicolor TG789vac v2
 - **LICENSES**: Folder with the licenses statements
 
-# Examples
+## Examples
 
 All example scripts behave in the same way. They will connect to the router and
 print the list of connected devices.
@@ -70,7 +74,7 @@ Call the script with three parameters:
 2. USERNAME
 3. PASSWORD
 
-# Makefile
+## Makefile
 
 For development purposes there is a Makefile to automate the different actions.
 
@@ -106,7 +110,10 @@ All the operations will happen in a virtual environment. The virtual
 environment folder is set in environment variable VENV, which defaults to
 *.venv*.
 
-# Setup the repository
+NOTE: if you change the prerequisites in the pyproject.toml, remember to run
+`make clean_venv` to recreate the virtual environment with the new data.
+
+## Setup the repository
 
 Clone the repository from
 [git@github.com:fra87/RouterScraper.git](git@github.com:fra87/RouterScraper.git)
