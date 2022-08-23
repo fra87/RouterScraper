@@ -39,7 +39,8 @@ classifiers = [
 ]
 dependencies = [
     'srp',
-    'beautifulsoup4'
+    'beautifulsoup4',
+    'requests'
 ]
 
 [project.optional-dependencies]
