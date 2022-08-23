@@ -7,14 +7,8 @@
 # SPDX-FileCopyrightText: 2022 fra87
 #
 
-# Include repository directory to be able to include routerscraper folder
-import pathlib
 import sys
-sys.path.append(str(pathlib.PurePath(__file__).parent.parent))
-
-# Ignoring E402 (module level import not at top of file) since including
-# routerscraper requires the sys.path.append above
-from routerscraper.fastgate_dn8245f2 import fastgate_dn8245f2  # noqa: E402
+from routerscraper.fastgate_dn8245f2 import fastgate_dn8245f2
 
 
 def executeMain(host: str, user: str, password: str):
