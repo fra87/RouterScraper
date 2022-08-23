@@ -7,4 +7,4 @@
 # SPDX-FileCopyrightText: 2022 fra87
 #
 
-__version__ = '0.0.1'
+__version__ = '0.1.0'
