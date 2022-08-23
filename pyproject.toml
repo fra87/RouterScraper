@@ -60,7 +60,7 @@ current_version = '0.0.1'
 version_pattern = 'MAJOR.MINOR.PATCH'
 commit_message  = 'Bump version {old_version} -> {new_version}'
 commit          = true
-tag             = false
+tag             = true
 push            = true
 
 [tool.bumpver.file_patterns]

@@ -76,9 +76,11 @@ For development purposes there is a Makefile to automate the different actions.
 
 The available targets are:
 
-- **all**: Build the package; this is the goal (i.e. target executed when
-           calling make without targets)
+- **all**: Build the package (equal to make dist); this is the goal (i.e.
+           target executed when calling make without targets)
 - **clean**: Clean the project (removing all the .pyc files)
+- **dist**: Build the package (both .tar.gz and .whl archives)
+- **deploy**: Upload the package on PyPI
 - *.venv/bin/activate*: Target to create the virtual environment
 - **create_venv**: Easier to remember PHONY to create the virtual environment
 - **clean_venv**: Remove the virtual environment
@@ -87,11 +89,16 @@ The available targets are:
 - **release-tests**: Execute all the checks for a release; this target is
                      automatically executed by the other **release-** targets.
 - **release-major**: Release the current version bumping the major index. This
-                     target needs that the GIT has no uncommitted changes.
+                     target needs that the GIT has no uncommitted changes and
+                     must be run from the main branch only.
 - **release-minor**: Release the current version bumping the minor index. This
-                     target needs that the GIT has no uncommitted changes.
+                     target needs that the GIT has no uncommitted changes and
+                     must be run from the main branch only.
 - **release-patch**: Release the current version bumping the patch index. This
-                     target needs that the GIT has no uncommitted changes.
+                     target needs that the GIT has no uncommitted changes and
+                     must be run from the main branch only.
+- **check-git-clean**: Helper recipe that tests if GIT repo is clean
+- **check-git-on-main**: Helper recipe that tests if GIT repo is on main branch
 
 Note: **bold** targets are PHONY, *italic* ones are files.
 
