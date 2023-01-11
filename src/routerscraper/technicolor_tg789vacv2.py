@@ -39,6 +39,52 @@ class technicolor_tg789vacv2(baseScraper):
                       b'4aa30bae5aa9003b8321e21ddb04e300')
         }
 
+    def __init__(self, host: str, user: str, password: str):
+        '''Initialize the object
+
+        Args:
+            host (str): The host address of the router
+            user (str): The username for the connection
+            password (str): The password for the connection
+        '''
+        super().__init__(host, user, password)
+        self._CSRFtoken = None
+
+    def _getSessionDict(self) -> dict:
+        '''Create a dictionary representing the current session
+
+        Shall be inherited by the child classes, who shall still call this one
+
+        Returns:
+            dict: The dictionary with the session data
+        '''
+        result = super()._getSessionDict()
+
+        if result is None:
+            return None
+
+        if not self._CSRFtoken:
+            return None
+        result['CSRFtoken'] = self._CSRFtoken
+
+        if 'sessionID' not in self._session.cookies:
+            return None
+        result['sessionID'] = self._session.cookies['sessionID']
+
+        return result
+
+    def _setSessionDict(self, dictionary: dict):
+        '''Restore the session status from a dictionary
+
+        Shall be inherited by the child classes, who shall still call this one
+
+        Args:
+            dictionary (dict): The dictionary with the data to apply
+        '''
+        super()._setSessionDict(dictionary)
+        self._CSRFtoken = dictionary['CSRFtoken']
+        self._session.cookies['sessionID'] = dictionary['sessionID']
+
     def _requestData(self, service: dataService, params: dict[str, str] = None,
                      autologin: bool = True, forceJSON: bool = False,
                      postRequest: bool = False) -> resultValue:

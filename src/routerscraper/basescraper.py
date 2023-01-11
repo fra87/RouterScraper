@@ -9,6 +9,9 @@
 
 from abc import ABC, abstractmethod
 import requests
+import json
+import base64
+from typing import Union
 
 from .dataTypes import (
         dataService,
@@ -28,7 +31,7 @@ class baseScraper(ABC):
         '''Initialize the object
 
         Args:
-            host (str): The host address of the Fastgate router
+            host (str): The host address of the router
             user (str): The username for the connection
             password (str): The password for the connection
         '''
@@ -60,6 +63,67 @@ class baseScraper(ABC):
         '''Resets the current session object
         '''
         self._session = requests.Session()
+
+    def exportSessionStatus(self) -> Union[str, None]:
+        '''Export the session status as a string
+
+        The string will be a base64 representation of a JSON dictionary with
+        the relevant data.
+
+        If the data cannot be retrieved, the function returns None
+
+        Returns:
+            str or None: The base64 string with the data
+        '''
+        result = None
+
+        currDict = self._getSessionDict()
+
+        if currDict:
+            dictStr = json.dumps(currDict)
+            result = base64.b64encode(dictStr.encode('utf-8')).decode('ascii')
+
+        return result
+
+    def restoreSessionStatus(self, string: str):
+        '''Restore the session status from a string
+
+        The string must be a base64 representation of a JSON dictionary with
+        the relevant data
+
+        Args:
+            string (str): The string with the data to apply
+        '''
+        dictStr = base64.b64decode(string.encode('ascii')).decode('utf-8')
+        newDict = json.loads(dictStr)
+
+        self._setSessionDict(newDict)
+
+    def _getSessionDict(self) -> Union[dict, None]:
+        '''Create a dictionary representing the current session
+
+        Shall be inherited by the child classes, who shall still call this one
+
+        If the data cannot be retrieved, the function returns None
+
+        Returns:
+            dict or None: The dictionary with the session data
+        '''
+        result = {}
+
+        result['lastLoginResult'] = str(self._lastLoginResult.value)
+
+        return result
+
+    def _setSessionDict(self, dictionary: dict):
+        '''Restore the session status from a dictionary
+
+        Shall be inherited by the child classes, who shall still call this one
+
+        Args:
+            dictionary (dict): The dictionary with the data to apply
+        '''
+        self._lastLoginResult = loginResult(dictionary['lastLoginResult'])
 
     def _requestData(self, service: dataService, params: dict[str, str] = None,
                      autologin: bool = True, forceJSON: bool = False,
