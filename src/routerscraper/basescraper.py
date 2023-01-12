@@ -85,7 +85,7 @@ class baseScraper(ABC):
 
         return result
 
-    def restoreSessionStatus(self, string: str):
+    def restoreSessionStatus(self, string: str) -> bool:
         '''Restore the session status from a string
 
         The string must be a base64 representation of a JSON dictionary with
@@ -93,11 +93,22 @@ class baseScraper(ABC):
 
         Args:
             string (str): The string with the data to apply
-        '''
-        dictStr = base64.b64decode(string.encode('ascii')).decode('utf-8')
-        newDict = json.loads(dictStr)
 
-        self._setSessionDict(newDict)
+        Returns:
+            bool: `True` if the session was restored correctly
+        '''
+        try:
+            stringBytes = string.encode('ascii')
+            dictBytes = base64.b64decode(stringBytes, validate=True)
+            dictStr = dictBytes.decode('utf-8')
+            newDict = json.loads(dictStr)
+        except (UnicodeEncodeError,
+                base64.binascii.Error,
+                json.decoder.JSONDecodeError):
+            # In case of error in decoding, do not apply the string
+            return False
+
+        return self._setSessionDict(newDict)
 
     def _getSessionDict(self) -> Union[dict, None]:
         '''Create a dictionary representing the current session
@@ -115,15 +126,29 @@ class baseScraper(ABC):
 
         return result
 
-    def _setSessionDict(self, dictionary: dict):
+    def _setSessionDict(self, dictionary: dict) -> bool:
         '''Restore the session status from a dictionary
 
         Shall be inherited by the child classes, who shall still call this one
 
         Args:
             dictionary (dict): The dictionary with the data to apply
+
+        Returns:
+            bool: `True` if the session was restored correctly
         '''
-        self._lastLoginResult = loginResult(dictionary['lastLoginResult'])
+        # Check all the specific keys are present in the dictionary
+        if 'lastLoginResult' not in dictionary:
+            return False
+
+        # Extract data
+        try:
+            self._lastLoginResult = loginResult(dictionary['lastLoginResult'])
+        except ValueError:
+            # In this case, the string is not a valid loginResult
+            return False
+
+        return True
 
     def _requestData(self, service: dataService, params: dict[str, str] = None,
                      autologin: bool = True, forceJSON: bool = False,
@@ -188,13 +213,15 @@ class baseScraper(ABC):
         # Verify if this was a login request by the router
         if self.isLoginRequest(payload):
             self._lastLoginResult = loginResult.NotLoggedIn
-            if autologin and self.login() == loginResult.Success:
-                # If the login was successful, retry the request
-                return self._requestData(service, params,
-                                         autologin=False,
-                                         forceJSON=forceJSON)
-            else:
-                return resultValue(resultState.MustLogin, payload=payload)
+            if autologin:
+                if (self.login(cleanStart=True) == loginResult.Success):
+                    # If the login was successful, retry the request
+                    return self._requestData(service, params,
+                                             autologin=False,
+                                             forceJSON=forceJSON)
+
+            # If we arrived here, the autologin failed or was not enabled
+            return resultValue(resultState.MustLogin, payload=payload)
 
         return resultValue(resultState.Completed, payload=payload)
 
@@ -252,7 +279,7 @@ class baseScraper(ABC):
         '''
         return False
 
-    def login(self, cleanStart: bool = False) -> loginResult:
+    def login(self, cleanStart: bool = True) -> loginResult:
         '''Perform a login action
 
         Note: this is just a wrapper function used to track the last login
@@ -261,7 +288,7 @@ class baseScraper(ABC):
 
         Args:
             cleanStart (bool, optional): Remove cookies and start from scratch.
-                                         Defaults to False.
+                                         Defaults to True.
 
         Returns:
             loginResult: The login outcome
@@ -271,7 +298,7 @@ class baseScraper(ABC):
         return result
 
     @abstractmethod
-    def _internal_login(self, cleanStart: bool = False) -> loginResult:
+    def _internal_login(self, cleanStart: bool = True) -> loginResult:
         '''Perform a login action
 
         Note: this function must not be used directly, but only through the
@@ -279,7 +306,7 @@ class baseScraper(ABC):
 
         Args:
             cleanStart (bool, optional): Remove cookies and start from scratch.
-                                         Defaults to False.
+                                         Defaults to True.
 
         Returns:
             loginResult: The login outcome

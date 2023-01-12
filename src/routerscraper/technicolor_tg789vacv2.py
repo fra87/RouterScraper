@@ -73,17 +73,29 @@ class technicolor_tg789vacv2(baseScraper):
 
         return result
 
-    def _setSessionDict(self, dictionary: dict):
+    def _setSessionDict(self, dictionary: dict) -> bool:
         '''Restore the session status from a dictionary
 
         Shall be inherited by the child classes, who shall still call this one
 
         Args:
             dictionary (dict): The dictionary with the data to apply
+
+        Returns:
+            bool: `True` if the session was restored correctly
         '''
-        super()._setSessionDict(dictionary)
+        # Check all the specific keys are present in the dictionary
+        if any(k not in dictionary for k in ('CSRFtoken', 'sessionID')):
+            return False
+
+        if not super()._setSessionDict(dictionary):
+            return False
+
+        # Extract data
         self._CSRFtoken = dictionary['CSRFtoken']
         self._session.cookies['sessionID'] = dictionary['sessionID']
+
+        return True
 
     def _requestData(self, service: dataService, params: dict[str, str] = None,
                      autologin: bool = True, forceJSON: bool = False,
@@ -184,7 +196,7 @@ class technicolor_tg789vacv2(baseScraper):
             result = str(payload.as_html().title) == '<title>Login</title>'
         return result
 
-    def _internal_login(self, cleanStart: bool = False) -> loginResult:
+    def _internal_login(self, cleanStart: bool = True) -> loginResult:
         '''Perform a login action
 
         Note: this function must not be used directly, but only through the
@@ -192,7 +204,7 @@ class technicolor_tg789vacv2(baseScraper):
 
         Args:
             cleanStart (bool, optional): Remove cookies and start from scratch.
-                                         Defaults to False.
+                                         Defaults to True.
 
         Returns:
             loginResult: The login outcome

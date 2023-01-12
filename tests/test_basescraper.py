@@ -10,6 +10,7 @@
 import unittest
 from unittest import mock
 import json
+import base64
 import requests
 
 from helpers_common import MockResponse, RecordedRequest
@@ -39,6 +40,94 @@ class TestBaseScraper(unittest.TestCase):
         self._pass = 'correctPass'
         self._component = tester_for_requestData(self._host, self._user,
                                                  self._pass)
+
+    ####################################
+    # Check session saving/restoring   #
+    ####################################
+
+    def test_getSessionDict(self):
+        '''Test _getSessionDict function
+        '''
+        got = self._component._getSessionDict()
+        exp = {'lastLoginResult': 'Login was not attempted'}
+        self.assertEqual(got, exp)
+
+    def test_setSessionDict_fail(self):
+        '''Test _getSessionDict function when failing
+        '''
+        dicts = {
+                'empty dict': {},
+                'wrong key': {'key': 'val'},
+                'wrong val': {'lastLoginResult': 'Wrong login'}
+            }
+        # Store original value (it shall not be modified
+        expDict = self._component._getSessionDict()
+
+        for caption, dict in dicts.items():
+            got = self._component._setSessionDict(dict)
+            self.assertFalse(got, f'Error with case {caption}')
+
+            currDict = self._component._getSessionDict()
+            self.assertEqual(currDict, expDict, f'Error with case {caption}')
+
+    def test_setSessionDict_success(self):
+        '''Test _getSessionDict function when succeeding
+        '''
+        dict = {'lastLoginResult': 'Login successful'}
+
+        oriDict = self._component._getSessionDict()
+        self.assertNotEqual(oriDict, dict)
+
+        got = self._component._setSessionDict(dict)
+        self.assertTrue(got)
+
+        currDict = self._component._getSessionDict()
+        self.assertEqual(currDict, dict)
+
+    def test_exportSessionStatus(self):
+        '''Test exportSessionStatus function
+        '''
+        dict = {'lastLoginResult': 'Login successful'}
+        got = self._component._setSessionDict(dict)
+        self.assertTrue(got)
+
+        got = self._component.exportSessionStatus()
+        dictStr = json.dumps(dict)
+        exp = base64.b64encode(dictStr.encode('utf-8')).decode('ascii')
+        self.assertEqual(got, exp)
+
+    def test_restoreSessionStatus_fail(self):
+        '''Test restoreSessionStatus function when failing
+        '''
+        strings = {
+                'empty string': '',
+                'wrong base64 chars': 'ZXlKc1lYTjA@=',
+                'wrong base64 padding': 'eyJsYXN0TG9naW5SZXN',
+                'wrong json': 'eyJsYXN0TG9naW5SZXM='
+            }
+        # Store original value (it shall not be modified)
+        expString = self._component.exportSessionStatus()
+
+        for caption, string in strings.items():
+            got = self._component.restoreSessionStatus(string)
+            self.assertFalse(got, f'Error with case {caption}')
+
+            currStr = self._component.exportSessionStatus()
+            self.assertEqual(currStr, expString, f'Error with case {caption}')
+
+    def test_restoreSessionStatus_success(self):
+        '''Test restoreSessionStatus function when succeeding
+        '''
+        string = 'eyJsYXN0TG9naW5SZXN1bHQiOiAiTG9naW4gc3VjY2Vzc2Z1bCJ9'
+
+        oriString = self._component.exportSessionStatus()
+        self.assertNotEqual(oriString, string)
+
+        got = self._component.restoreSessionStatus(string)
+        self.assertTrue(got)
+
+        currString = self._component.exportSessionStatus()
+        self.assertEqual(currString, string)
 
     ####################################
     # Check _requestData               #

@@ -24,6 +24,15 @@ Then you can get relevant information with:
 
 The functions automatically issue a login request if necessary.
 
+## Saving and restoring sessions
+
+It is possible to export the sessions to later restore them; this can be used
+to avoid having to login every time.
+
+To do this, you can export the current status through `exportSessionStatus`,
+which returns a string (base64 encoded JSON dict) that can be saved. The
+`restoreSessionStatus` function restores the status from that string.
+
 # Supported routers
 
 At present the package was tested with the following routers firmwares

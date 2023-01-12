@@ -30,6 +30,48 @@ class fastgate_dn8245f2(baseScraper):
         dataService.ConnectedDevices: {'nvget': 'connected_device_list'},
     }
 
+    def _getSessionDict(self) -> dict:
+        '''Create a dictionary representing the current session
+
+        Shall be inherited by the child classes, who shall still call this one
+
+        Returns:
+            dict: The dictionary with the session data
+        '''
+        result = super()._getSessionDict()
+
+        if result is None:
+            return None
+
+        if 'Cookie' not in self._session.cookies:
+            return None
+        result['Cookie'] = self._session.cookies['Cookie']
+
+        return result
+
+    def _setSessionDict(self, dictionary: dict) -> bool:
+        '''Restore the session status from a dictionary
+
+        Shall be inherited by the child classes, who shall still call this one
+
+        Args:
+            dictionary (dict): The dictionary with the data to apply
+
+        Returns:
+            bool: `True` if the session was restored correctly
+        '''
+        # Check all the specific keys are present in the dictionary
+        if 'Cookie' not in dictionary:
+            return False
+
+        if not super()._setSessionDict(dictionary):
+            return False
+
+        # Extract data
+        self._session.cookies['Cookie'] = dictionary['Cookie']
+
+        return True
+
     def _requestData_validService(self, service: dataService) -> bool:
         '''Check if the service is a valid service for the router
 
@@ -90,7 +132,7 @@ class fastgate_dn8245f2(baseScraper):
             result = login_confirm.get('login_status') == '0'
         return result
 
-    def _internal_login(self, cleanStart: bool = False) -> loginResult:
+    def _internal_login(self, cleanStart: bool = True) -> loginResult:
         '''Perform a login action
 
         Note: this function must not be used directly, but only through the
@@ -98,7 +140,7 @@ class fastgate_dn8245f2(baseScraper):
 
         Args:
             cleanStart (bool, optional): Remove cookies and start from scratch.
-                                         Defaults to False.
+                                         Defaults to True.
 
         Returns:
             loginResult: The login outcome
