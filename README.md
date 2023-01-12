@@ -122,6 +122,22 @@ environment folder is set in environment variable VENV, which defaults to
 NOTE: if you change the prerequisites in the pyproject.toml, remember to run
 `make clean_venv` to recreate the virtual environment with the new data.
 
+## Release procedure
+
+In order to release a new version, everything shall be already committed to the
+GIT repo (since the process requires a clean GIT repo); in addition, the repo
+shall be on main branch. If this is not true, the process will fail.
+
+After having committed the last modifications, issue the following commands:
+
+    make clean
+    make release-XXX
+
+The release target shall be `release-major`, `release-minor` or `release-patch`,
+according to which part of the software version shall be increased.
+
+If everything is correct, run `make deploy` to upload the files to PyPI.
+
 ## Setup the repository
 
 Clone the repository from
