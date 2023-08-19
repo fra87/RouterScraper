@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 ###############################################################################
 #
-# baseScraper - Base class for Scraper classes.
+# requestScraper - Base class for requests Scraper classes.
 #
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2022 fra87
@@ -14,7 +14,7 @@ import base64
 import requests
 
 from helpers_common import MockResponse, RecordedRequest
-from helpers_basescraper import tester_for_requestData, SessionMock_Auth
+from helpers_requestscraper import tester_for_requestData, SessionMock_Auth
 from routerscraper.dataTypes import (
         dataService,
         resultState,
@@ -25,8 +25,8 @@ from routerscraper.dataTypes import (
     )
 
 
-class TestBaseScraper(unittest.TestCase):
-    '''Test the base scraper implementation
+class TestRequestScraper(unittest.TestCase):
+    '''Test the requests scraper implementation
     '''
 
     def setUp(self):
@@ -133,7 +133,7 @@ class TestBaseScraper(unittest.TestCase):
     # Check _requestData               #
     ####################################
 
-    @mock.patch('routerscraper.basescraper.requests.Session')
+    @mock.patch('routerscraper.requestscraper.requests.Session')
     def test_requestData_get_params(self, mock_Session):
         '''Test parameters passing for GET
         '''
@@ -153,7 +153,7 @@ class TestBaseScraper(unittest.TestCase):
 
         self.assertEqual(got, exp)
 
-    @mock.patch('routerscraper.basescraper.requests.Session')
+    @mock.patch('routerscraper.requestscraper.requests.Session')
     def test_requestData_post_params(self, mock_Session):
         '''Test parameters passing for POST
         '''
@@ -214,7 +214,7 @@ class TestBaseScraper(unittest.TestCase):
 
         self.assertEqual(got, exp)
 
-    @mock.patch('routerscraper.basescraper.requests.Session')
+    @mock.patch('routerscraper.requestscraper.requests.Session')
     def test_requestData_need_login(self, mock_Session):
         '''Test a reply where the server needs login for the service
         '''
@@ -229,7 +229,7 @@ class TestBaseScraper(unittest.TestCase):
         self.assertEqual(got, exp)
         self.assertEqual(self._component.isLoggedIn, False)
 
-    @mock.patch('routerscraper.basescraper.requests.Session')
+    @mock.patch('routerscraper.requestscraper.requests.Session')
     def test_requestData_autologin(self, mock_Session):
         '''Test a reply where the server needs login and library performs it
         '''
@@ -244,7 +244,7 @@ class TestBaseScraper(unittest.TestCase):
         self.assertEqual(got, exp)
         self.assertEqual(self._component.isLoggedIn, True)
 
-    @mock.patch('routerscraper.basescraper.requests.Session')
+    @mock.patch('routerscraper.requestscraper.requests.Session')
     def test_requestData_autologin_fail(self, mock_Session):
         '''Test a reply where the server needs login and login failed
         '''

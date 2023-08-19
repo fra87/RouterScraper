@@ -13,6 +13,7 @@ from enum import Enum
 from typing import Any, Union
 import json
 from bs4 import BeautifulSoup
+from datetime import datetime
 
 
 class dataService(Enum):
@@ -238,6 +239,30 @@ class connectedDevice:
     '''Class containing one connected device information
     '''
     Name: str
+    '''Name of the connected device'''
+
     MAC: str
+    '''MAC address of the connected device'''
+
     IP: str
+    '''IP address of the connected device'''
+
     additionalInfo: dict = field(default_factory=dict)
+    '''Additional information associated to the device (dictionary)'''
+
+
+@dataclass
+class sms:
+    '''Class containing one SMS information
+    '''
+    number: str
+    '''Number sending the SMS'''
+
+    timestamp: datetime
+    '''Timestamp of the SMS'''
+
+    content: str
+    '''Text of the SMS'''
+
+    additionalInfo: dict = field(default_factory=dict)
+    '''Additional information associated to the sms (dictionary)'''

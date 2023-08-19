@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 ###############################################################################
 #
-# baseScraper - Helper functions for testing base class
+# requestScraper - Helper functions for testing base class
 #
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2022 fra87
@@ -9,7 +9,7 @@
 
 from helpers_common import MockResponse, SessionMock_Auth_Base
 
-from routerscraper.basescraper import baseScraper
+from routerscraper.requestscraper import requestScraper
 from routerscraper.dataTypes import (
         dataService,
         resultState,
@@ -20,8 +20,8 @@ from routerscraper.dataTypes import (
     )
 
 
-class tester_for_requestData(baseScraper):
-    '''baseScraper implementation for testing _requestData
+class tester_for_requestData(requestScraper):
+    '''requestScraper implementation for testing _requestData
     '''
 
     # List of valid services

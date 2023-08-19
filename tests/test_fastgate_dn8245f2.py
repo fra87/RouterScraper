@@ -169,7 +169,7 @@ class TestFastgate_dn8245f2(unittest.TestCase):
     # Check _requestData login         #
     ####################################
 
-    @mock.patch('routerscraper.basescraper.requests.Session')
+    @mock.patch('routerscraper.requestscraper.requests.Session')
     def test_requestData_need_login(self, mock_Session):
         '''Test a reply where the server needs login for the service
         '''
@@ -181,7 +181,7 @@ class TestFastgate_dn8245f2(unittest.TestCase):
 
         self.assertEqual(got, exp)
 
-    @mock.patch('routerscraper.basescraper.requests.Session')
+    @mock.patch('routerscraper.requestscraper.requests.Session')
     def test_requestData_autologin_success(self, mock_Session):
         '''Test a reply where the server needs login and library performs it
         '''
@@ -196,7 +196,7 @@ class TestFastgate_dn8245f2(unittest.TestCase):
 
         self.assertEqual(got, exp)
 
-    @mock.patch('routerscraper.basescraper.requests.Session')
+    @mock.patch('routerscraper.requestscraper.requests.Session')
     def test_requestData_autologin_fail(self, mock_Session):
         '''Test a reply where the server needs login and login failed
 
@@ -216,7 +216,7 @@ class TestFastgate_dn8245f2(unittest.TestCase):
     # Check login                      #
     ####################################
 
-    @mock.patch('routerscraper.basescraper.requests.Session')
+    @mock.patch('routerscraper.requestscraper.requests.Session')
     def test_login_ConnectionError_step1(self, mock_Session):
         '''Test login fails for ConnectionError at step 1
         '''
@@ -233,7 +233,7 @@ class TestFastgate_dn8245f2(unittest.TestCase):
 
         self.assertEqual(gotFuncCalls, expFuncCalls)
 
-    @mock.patch('routerscraper.basescraper.requests.Session')
+    @mock.patch('routerscraper.requestscraper.requests.Session')
     def test_login_noJson_step1(self, mock_Session):
         '''Test login fails for missing JSON at step 1
         '''
@@ -253,7 +253,7 @@ class TestFastgate_dn8245f2(unittest.TestCase):
 
         self.assertEqual(gotFuncCalls, expFuncCalls)
 
-    @mock.patch('routerscraper.basescraper.requests.Session')
+    @mock.patch('routerscraper.requestscraper.requests.Session')
     def test_login_locked(self, mock_Session):
         '''Test login fails because login was locked
         '''
@@ -272,7 +272,7 @@ class TestFastgate_dn8245f2(unittest.TestCase):
 
         self.assertEqual(gotFuncCalls, expFuncCalls)
 
-    @mock.patch('routerscraper.basescraper.requests.Session')
+    @mock.patch('routerscraper.requestscraper.requests.Session')
     def test_login_no_token(self, mock_Session):
         '''Test login fails because no token was provided
         '''
@@ -290,7 +290,7 @@ class TestFastgate_dn8245f2(unittest.TestCase):
 
         self.assertEqual(gotFuncCalls, expFuncCalls)
 
-    @mock.patch('routerscraper.basescraper.requests.Session')
+    @mock.patch('routerscraper.requestscraper.requests.Session')
     def test_login_ConnectionError_step2(self, mock_Session):
         '''Test login fails for ConnectionError at step 2
         '''
@@ -317,7 +317,7 @@ class TestFastgate_dn8245f2(unittest.TestCase):
 
         self.assertEqual(gotFuncCalls, expFuncCalls)
 
-    @mock.patch('routerscraper.basescraper.requests.Session')
+    @mock.patch('routerscraper.requestscraper.requests.Session')
     def test_login_noJson_step2(self, mock_Session):
         '''Test login fails for missing JSON at step 2
         '''
@@ -347,7 +347,7 @@ class TestFastgate_dn8245f2(unittest.TestCase):
 
         self.assertEqual(gotFuncCalls, expFuncCalls)
 
-    @mock.patch('routerscraper.basescraper.requests.Session')
+    @mock.patch('routerscraper.requestscraper.requests.Session')
     def test_login_wrong_user(self, mock_Session):
         '''Test login fails for wrong user
         '''
@@ -373,7 +373,7 @@ class TestFastgate_dn8245f2(unittest.TestCase):
 
         self.assertEqual(gotFuncCalls, expFuncCalls)
 
-    @mock.patch('routerscraper.basescraper.requests.Session')
+    @mock.patch('routerscraper.requestscraper.requests.Session')
     def test_login_wrong_password(self, mock_Session):
         '''Test login fails for wrong password
         '''
@@ -399,7 +399,7 @@ class TestFastgate_dn8245f2(unittest.TestCase):
 
         self.assertEqual(gotFuncCalls, expFuncCalls)
 
-    @mock.patch('routerscraper.basescraper.requests.Session')
+    @mock.patch('routerscraper.requestscraper.requests.Session')
     def test_login_success(self, mock_Session):
         '''Test login was successful
         '''

@@ -193,7 +193,7 @@ class TestTechnicolor_tg789vacv2(unittest.TestCase):
     # Check _requestData login         #
     ####################################
 
-    @mock.patch('routerscraper.basescraper.requests.Session')
+    @mock.patch('routerscraper.requestscraper.requests.Session')
     def test_requestData_need_login(self, mock_Session):
         '''Test a reply where the server needs login for the service
         '''
@@ -206,7 +206,7 @@ class TestTechnicolor_tg789vacv2(unittest.TestCase):
 
         self.assertEqual(got, exp)
 
-    @mock.patch('routerscraper.basescraper.requests.Session')
+    @mock.patch('routerscraper.requestscraper.requests.Session')
     def test_requestData_autologin_success(self, mock_Session):
         '''Test a reply where the server needs login and library performs it
         '''
@@ -222,7 +222,7 @@ class TestTechnicolor_tg789vacv2(unittest.TestCase):
 
         self.assertEqual(got, exp)
 
-    @mock.patch('routerscraper.basescraper.requests.Session')
+    @mock.patch('routerscraper.requestscraper.requests.Session')
     def test_requestData_autologin_fail(self, mock_Session):
         '''Test a reply where the server needs login and login failed
 
@@ -243,7 +243,7 @@ class TestTechnicolor_tg789vacv2(unittest.TestCase):
     # Check login                      #
     ####################################
 
-    @mock.patch('routerscraper.basescraper.requests.Session')
+    @mock.patch('routerscraper.requestscraper.requests.Session')
     def test_login_ConnectionError_step0(self, mock_Session):
         '''Test login fails for ConnectionError at step 0 (must login)
         '''
@@ -265,7 +265,7 @@ class TestTechnicolor_tg789vacv2(unittest.TestCase):
 
         self.assertEqual(gotFuncCalls, expFuncCalls)
 
-    @mock.patch('routerscraper.basescraper.requests.Session')
+    @mock.patch('routerscraper.requestscraper.requests.Session')
     def test_login_no_token_step0(self, mock_Session):
         '''Test login fails for no token provided at step 0 (must login)
         '''
@@ -286,7 +286,7 @@ class TestTechnicolor_tg789vacv2(unittest.TestCase):
 
         self.assertEqual(gotFuncCalls, expFuncCalls)
 
-    @mock.patch('routerscraper.basescraper.requests.Session')
+    @mock.patch('routerscraper.requestscraper.requests.Session')
     def test_login_ConnectionError_step1(self, mock_Session):
         '''Test login fails for ConnectionError at step 1 (I, A)
         '''
@@ -308,7 +308,7 @@ class TestTechnicolor_tg789vacv2(unittest.TestCase):
 
         self.assertEqual(gotFuncCalls, expFuncCalls)
 
-    @mock.patch('routerscraper.basescraper.requests.Session')
+    @mock.patch('routerscraper.requestscraper.requests.Session')
     def test_login_wrongUser_step1(self, mock_Session):
         '''Test login fails for wrong user at step 1 (I, A)
         '''
@@ -328,7 +328,7 @@ class TestTechnicolor_tg789vacv2(unittest.TestCase):
 
         self.assertEqual(gotFuncCalls, expFuncCalls)
 
-    @mock.patch('routerscraper.basescraper.requests.Session')
+    @mock.patch('routerscraper.requestscraper.requests.Session')
     def test_login_no_s_step1(self, mock_Session):
         '''Test login fails for not receiving s at step 1 (I, A)
         '''
@@ -349,7 +349,7 @@ class TestTechnicolor_tg789vacv2(unittest.TestCase):
 
         self.assertEqual(gotFuncCalls, expFuncCalls)
 
-    @mock.patch('routerscraper.basescraper.requests.Session')
+    @mock.patch('routerscraper.requestscraper.requests.Session')
     def test_login_no_B_step1(self, mock_Session):
         '''Test login fails for not receiving B at step 1 (I, A)
         '''
@@ -370,7 +370,7 @@ class TestTechnicolor_tg789vacv2(unittest.TestCase):
 
         self.assertEqual(gotFuncCalls, expFuncCalls)
 
-    @mock.patch('routerscraper.basescraper.requests.Session')
+    @mock.patch('routerscraper.requestscraper.requests.Session')
     def test_login_no_M_step1(self, mock_Session):
         '''Test login fails for not being able to generate M at step 1 (I, A)
         '''
@@ -392,7 +392,7 @@ class TestTechnicolor_tg789vacv2(unittest.TestCase):
 
         self.assertEqual(gotFuncCalls, expFuncCalls)
 
-    @mock.patch('routerscraper.basescraper.requests.Session')
+    @mock.patch('routerscraper.requestscraper.requests.Session')
     def test_login_ConnectionError_step2(self, mock_Session):
         '''Test login fails for ConnectionError at step 2 (M)
         '''
@@ -416,7 +416,7 @@ class TestTechnicolor_tg789vacv2(unittest.TestCase):
 
         self.assertEqual(gotFuncCalls, expFuncCalls)
 
-    @mock.patch('routerscraper.basescraper.requests.Session')
+    @mock.patch('routerscraper.requestscraper.requests.Session')
     def test_login_no_M_step2(self, mock_Session):
         '''Test login fails for not receiving M at step 2 (M)
         '''
@@ -441,7 +441,7 @@ class TestTechnicolor_tg789vacv2(unittest.TestCase):
 
         self.assertEqual(gotFuncCalls, expFuncCalls)
 
-    @mock.patch('routerscraper.basescraper.requests.Session')
+    @mock.patch('routerscraper.requestscraper.requests.Session')
     def test_login_error_step2(self, mock_Session):
         '''Test login fails for receiving an error at step 2 (M)
         '''
@@ -463,7 +463,7 @@ class TestTechnicolor_tg789vacv2(unittest.TestCase):
 
         self.assertEqual(gotFuncCalls, expFuncCalls)
 
-    @mock.patch('routerscraper.basescraper.requests.Session')
+    @mock.patch('routerscraper.requestscraper.requests.Session')
     def test_login_wrong_password(self, mock_Session):
         '''Test login fails for using a wrong password
         '''
@@ -484,7 +484,7 @@ class TestTechnicolor_tg789vacv2(unittest.TestCase):
 
         self.assertEqual(gotFuncCalls, expFuncCalls)
 
-    @mock.patch('routerscraper.basescraper.requests.Session')
+    @mock.patch('routerscraper.requestscraper.requests.Session')
     def test_login_wrong_verification(self, mock_Session):
         '''Test login fails for having a wrong verification code (HAMK)
         '''
@@ -506,7 +506,7 @@ class TestTechnicolor_tg789vacv2(unittest.TestCase):
 
         self.assertEqual(gotFuncCalls, expFuncCalls)
 
-    @mock.patch('routerscraper.basescraper.requests.Session')
+    @mock.patch('routerscraper.requestscraper.requests.Session')
     def test_login_success(self, mock_Session):
         '''Test login was successful
         '''

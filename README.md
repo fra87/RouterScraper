@@ -13,6 +13,7 @@ Import the required class from the `routerscraper` package:
 
 - `fastgate_dn8245f2.py` for the Fastgate Huawei DN8245f2
 - `technicolor_tg789vacv2.py` for the Technicolor TG789vac v2
+- `tplink_m7000.py` for the TP-Link M7000
 
 The constructor needs the following parameters
 - `host`: the hostname (or IP address) of the router
@@ -21,8 +22,21 @@ The constructor needs the following parameters
 
 Then you can get relevant information with:
 - `listDevices()`: get the list of connected devices
+- `getSmsList()`: get the list of SMS present on the device
 
 The functions automatically issue a login request if necessary.
+
+
+## Supported functions
+
+Not all functions are supported by all devices. See table below for supported
+functions:
+
+| Function                 | `listDevices()` | `getSmsList()` |
+| :----------------------- | :-------------: | :------------: |
+| Fastgate Huawei DN8245f2 |        X        |                |
+| Technicolor TG789vac v2  |        X        |                |
+| TP-Link M7000            |                 |        X       |
 
 ## Saving and restoring sessions
 
@@ -39,6 +53,7 @@ At present the package was tested with the following routers firmwares
 
 - Fastgate Huawei DN8245f2 - software 1.0.1b
 - Technicolor TG789vac v2 - software 16.3.7636
+- TP-Link M7000 - software 1.0.10 Build 211230 Rel.1026n
 
 # Developer notes
 
@@ -53,11 +68,14 @@ Here are some additional notes for developing the library (not just using it).
 - `Makefile`: Makefile to help running development scripts
 - **src/routerscraper**: Folder with the scraping package
     - `basescraper.py`: Contains the base class implementation
+    - `requestscraper.py`: Contains the base class for scrapers using requests
+    - `seleniumscraper.py`: Contains the base class for scrapers using Selenium
     - `dataTypes.py`: Module to group data types used in the functions
     - `fastgate_dn8245f2.py`: Contains the implementation for the Fastgate
                               Huawei DN8245f2
     - `technicolor_tg789vacv2.py`: Contains the implementation for the
                                    Technicolor TG789vac v2
+    - `tplink_m7000.py`: Contains the implementation for the TP-Link M7000
 - **tests**: Folder with the unit tests. Each test file in this folder
              implements tests linked to the corresponding file in the
              **routerscraper** folder; if necessary, helper files group
@@ -70,12 +88,15 @@ Here are some additional notes for developing the library (not just using it).
                               Fastgate Huawei DN8245f2
     - `technicolor_tg789vacv2.py`: Contains an example implementation for the
                                    Technicolor TG789vac v2
+    - `tplink_m7000.py`: Contains an example implementation for the TP-Link
+                         M7000
 - **LICENSES**: Folder with the licenses statements
 
 ## Examples
 
 All example scripts behave in the same way. They will connect to the router and
-print the list of connected devices.
+print the list of connected devices (or the received SMS, in the case of the
+TP-Link).
 
 Call the script with three parameters:
 

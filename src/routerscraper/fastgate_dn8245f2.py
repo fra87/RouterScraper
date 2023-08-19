@@ -9,7 +9,7 @@
 
 import base64
 
-from .basescraper import baseScraper
+from .requestscraper import requestScraper
 from .dataTypes import (
         dataService,
         resultState,
@@ -20,7 +20,7 @@ from .dataTypes import (
     )
 
 
-class fastgate_dn8245f2(baseScraper):
+class fastgate_dn8245f2(requestScraper):
     '''Class for scraping data from Fastgate Huawei DN8245f2
     '''
 

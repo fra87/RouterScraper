@@ -9,7 +9,7 @@
 
 import srp
 
-from .basescraper import baseScraper
+from .requestscraper import requestScraper
 from .dataTypes import (
         dataService,
         resultState,
@@ -20,7 +20,7 @@ from .dataTypes import (
     )
 
 
-class technicolor_tg789vacv2(baseScraper):
+class technicolor_tg789vacv2(requestScraper):
     '''Class for scraping data from Technicolor TG789vac v2
     '''
 
