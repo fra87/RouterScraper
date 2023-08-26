@@ -11,11 +11,14 @@ from __future__ import annotations
 from abc import abstractmethod
 import selenium
 from selenium.webdriver import Firefox
+from selenium.webdriver.firefox.service import Service
 from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.remote.webelement import WebElement
 import time
+from os import devnull
 from typing import Callable, Any
 from dataclasses import dataclass
+from pathlib import Path
 
 from .basescraper import baseScraper
 from .dataTypes import (
@@ -29,8 +32,13 @@ class seleniumScraper(baseScraper):
     '''
 
     def __init__(self, host: str, user: str, password: str,
-                 seeWindow: bool = False):
+                 seeWindow: bool = False, geckoLogPath: Path = None):
         '''Initialize the object
+
+        The path for the gecko log can be either:
+        - None -> No file will be created (so redirected to os.devnull)
+        - A DIR path -> file geckodrivers.log will be created inside that dir
+        - A FILE path -> that file will be used for the logs
 
         Args:
             host (str): The host address of the router
@@ -40,16 +48,32 @@ class seleniumScraper(baseScraper):
                                         can see the operations, and leave it
                                         open at the end of the program.
                                         Defaults to False.
+            geckoLogPath (Path, optional): The path for the gecko log. Defaults
+                                           to None.
         '''
         super().__init__(host, user, password)
         self._seeWindow = seeWindow
+
+        self._geckoLogPath = geckoLogPath
+
+        # Management of the gecko path
+        # If none was passed, redirect to os.devnull
+        if self._geckoLogPath is None:
+            self._geckoLogPath = devnull
+        # If it was not a path, try to convert it
+        if not isinstance(self._geckoLogPath, Path):
+            self._geckoLogPath = Path(self._geckoLogPath)
+        # If it was a dir, use file geckodrivers.log inside it
+        if self._geckoLogPath.is_dir():
+            self._geckoLogPath = self._geckoLogPath / 'geckodrivers.log'
 
     def __enter__(self):
         # Create the window
         options = Options()
         options.headless = not self._seeWindow
+        service = Service(log_path=self._geckoLogPath)
 
-        self._driver = Firefox(options=options)
+        self._driver = Firefox(options=options, service=service)
 
         return self
 
