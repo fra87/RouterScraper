@@ -8,6 +8,7 @@
 #
 from __future__ import annotations
 
+import selenium
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
@@ -42,8 +43,13 @@ class tplink_m7000(seleniumScraper):
         Returns:
             bool: True if the webpage is logged in
         '''
-        # Page is logged in if there is any content
-        return bool(self._driver.find_element(By.ID, 'container').text)
+        # Page is logged in if there is any content in the container
+        try:
+            result = bool(self._driver.find_element(By.ID, 'container').text)
+        except selenium.common.exceptions.NoSuchElementException:
+            # If there is no container, this is login page (so not logged in)
+            result = False
+        return result
 
     def _internal_login(self, cleanStart: bool = True) -> loginResult:
         '''Perform a login action
